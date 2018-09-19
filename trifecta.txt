@@ -1,2 +1,9 @@
-[1] NAME doc
-[2] NAME2 doc number two
+[1] NAME    "doc"
+[2] NAMEX   "doc number two"
+[3] NAMEXX  "doc number three" {
+  [4] NAMEXXX "doc number four" {
+    <6> NAMEXXXXX "doc"
+    =42 NAMEXXXXXX "doc"
+  }
+}
+[5] NAMEXXXX "something"
