@@ -22,18 +22,14 @@ bitmapLocationP = (BitmapLocation <$> angles integer) <?> "bitfield location"
 data Name = Name String deriving Show
 
 nameP :: (TokenParsing m, Errable m) => m Name
-nameP = Name <$> (some $ satisfyRange 'A' 'Z') <?> "name of item"
+nameP = Name <$> (token $ some $ satisfyRange 'A' 'Z') <?> "name of item"
 
 data Doc = Doc String deriving Show
 
 docP :: (TokenParsing m, Errable m) => m Doc
-docP = Doc <$> (whiteSpace *> stringLiteral) <?> "documentation string"
--- docP = Doc <$> (whiteSpace *> (stringLiteral <|> untilEOLOrBrace)) <?> "documentation string"
-  -- where
-    -- untilEOLOrBrace =                many $ satisfy (\ c -> c /= '{')
-    -- untilEOLOrBrace =                many $ satisfy (\ c -> c /= '{' && c /= '\n')
-    -- untilEOLOrBrace = (runUnspaced $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
-    -- untilEOLOrBrace = (runUnlined  $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
+docP = Doc <$> (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
+  where
+    untilEOLOrBrace = token $ many $ satisfy (\ c -> c /= '{' && c /= '\n')
 
 data ValueItem = ValueItem Integer Name Doc deriving Show
 
