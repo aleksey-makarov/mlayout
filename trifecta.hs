@@ -33,9 +33,6 @@ docP = Doc <$> (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
 
 data ValueItem = ValueItem Integer Name Doc deriving Show
 
-numberP :: (TokenParsing m, Errable m) => m String
-numberP = some digit <?> "number"
-
 valueItemP :: (TokenParsing m, Errable m) => m ValueItem
 valueItemP = (char '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
