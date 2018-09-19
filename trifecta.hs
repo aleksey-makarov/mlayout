@@ -6,18 +6,19 @@ import           Control.Applicative
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.Token
+-- import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
 data LayoutLocation = LayoutLocation Integer deriving Show
 
 layoutLocationP :: (TokenParsing m, Errable m) => m LayoutLocation
-layoutLocationP = (LayoutLocation <$> brackets integer) <?> "layout location"
+layoutLocationP = LayoutLocation <$> brackets integer <?> "layout location"
 
 data BitmapLocation = BitmapLocation Integer deriving Show
 
 bitmapLocationP :: (TokenParsing m, Errable m) => m BitmapLocation
-bitmapLocationP = (BitmapLocation <$> angles integer) <?> "bitfield location"
+bitmapLocationP = BitmapLocation <$> angles integer <?> "bitfield location"
 
 data Name = Name String deriving Show
 
@@ -58,6 +59,18 @@ layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (b
 
 parser :: (TokenParsing m, Errable m) => m [LayoutItem]
 parser = whiteSpace *> (some layoutItemP) <* eof
+
+-- -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
+-- newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
+--   deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
+--            , Parsing, CharParsing, LookAheadParsing)
+--
+-- instance TokenParsing ProtoParser where
+--   someSpace   = TokenStyle.buildSomeSpaceParser
+--                   (ProtoParser someSpace)
+--                   TokenStyle.javaCommentStyle
+-- -- use the default implementation for other methods:
+-- -- nesting, semi, highlight, token
 
 main :: IO ()
 main = do
