@@ -1,13 +1,14 @@
-#!/usr/bin/env stack
--- stack --resolver nightly-2018-06-13 script --package trifecta --package parsers
-{-# OPTIONS_GHC -Wall #-}
+
+module MLayout.Parser
+  ( parser
+  ) where
 
 import           Control.Applicative
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.Token
 -- import           Text.Parser.Token.Style
-import           Text.Trifecta.Parser
+-- import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
 data LayoutLocation = LayoutLocation Integer deriving Show
@@ -71,12 +72,3 @@ parser = whiteSpace *> (some layoutItemP) <* eof
 --                   TokenStyle.javaCommentStyle
 -- -- use the default implementation for other methods:
 -- -- nesting, semi, highlight, token
-
-main :: IO ()
-main = do
-  result <- parseFromFile parser "trifecta.txt"
-  case result of
-    Nothing -> putStrLn "Failure"
-    Just x  -> do
-      putStrLn "Success"
-      print x
