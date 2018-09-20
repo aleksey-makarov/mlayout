@@ -1,14 +1,17 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module MLayout.Parser
   ( parser
   ) where
 
 import           Control.Applicative
+import           Control.Monad
 import           Text.Parser.Char
 import           Text.Parser.Combinators
+import           Text.Parser.LookAhead
 import           Text.Parser.Token
--- import           Text.Parser.Token.Style
--- import           Text.Trifecta.Parser
+import           Text.Parser.Token.Style
+import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
 data LayoutLocation = LayoutLocation Integer deriving Show
@@ -58,17 +61,14 @@ data LayoutItem = LayoutItem LayoutLocation Name Doc (Maybe LayoutBody) deriving
 layoutItemP :: (TokenParsing m, Errable m) => m LayoutItem
 layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
 
-parser :: (TokenParsing m, Errable m) => m [LayoutItem]
-parser = whiteSpace *> (some layoutItemP) <* eof
+-- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
+newtype MLayoutParser a = MLayoutParser { runMLayoutParser :: Parser a }
+  deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
 
--- -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
--- newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
---   deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
---            , Parsing, CharParsing, LookAheadParsing)
---
--- instance TokenParsing ProtoParser where
---   someSpace   = TokenStyle.buildSomeSpaceParser
---                   (ProtoParser someSpace)
---                   TokenStyle.javaCommentStyle
--- -- use the default implementation for other methods:
--- -- nesting, semi, highlight, token
+instance TokenParsing MLayoutParser where
+  someSpace = buildSomeSpaceParser (MLayoutParser someSpace) $ CommentStyle "" "" "#" True
+-- use the default implementation for other methods:
+-- nesting, semi, highlight, token
+
+parser :: Parser [LayoutItem]
+parser = runMLayoutParser $ whiteSpace *> (some layoutItemP) <* eof
