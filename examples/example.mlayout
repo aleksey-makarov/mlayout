@@ -8,7 +8,8 @@
     [%16]    ABC1
     # note "!" that prevents error for the 4-byte word that
     # is not aligned naturally
-    [%32@4!] ABC2
+    # [%32@4!] ABC2 # FIXME: bring that ! back
+    [%32@4] ABC2
   }
 
   # Subarea that does not appear at the output
@@ -37,7 +38,8 @@
 
   # one 4-byte word at offet 19
   # without "!" this unaligned word would cause an error
-  [%32!] B3 Docs for B3 {
+  # [%32!] B3 Docs for B3 { # FIXME: bring that ! back
+  [%32] B3 Docs for B3 {
     <2@0>  E1 Docs for E1     # Two bits starting at 0
     <2@>   E2 Docs for E2     # Two bits starting at the next free location
     <4>    E3 Docs for E3     # 4th bit
