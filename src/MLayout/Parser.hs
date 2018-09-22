@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MLayout.Parser
   ( parser
@@ -11,6 +13,9 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Builder as TLB
+import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
@@ -18,6 +23,10 @@ import           Text.Parser.Token
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
+
+-- type Addr = Word64
+-- type Width = Word64
+-- type Val = Word64
 
 data StartSet s
   = StartSet
@@ -38,23 +47,30 @@ data Location s w
     , _width        :: w
     } deriving (Show, Functor, Foldable, Traversable)
 
-wordP :: TokenParsing m => m Word
-wordP = fromInteger <$> natural -- FIXME: check boundaries
+throw :: (Applicative m, Errable m) => Format (m b) a -> a
+throw m = runFormat m $ raiseErr . failed . TL.unpack . TLB.toLazyText
 
-startArrayP :: (TokenParsing m, Errable m) => m (StartSet (Maybe Word))
+wordP :: forall a m . (TokenParsing m, Errable m, Monad m, Num a, Integral a, Bounded a) => m a
+wordP = do
+  v <- natural
+  if v < toInteger (minBound :: a) || toInteger (maxBound :: a) < v
+    then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
+    else return $ fromInteger v
+
+startArrayP :: Prsr (StartSet (Maybe Word))
 startArrayP = do
   start <- optional wordP
   (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((char '+') *> wordP)
   return $ StartSetPeriodic start n step
 
-startSetP :: (TokenParsing m, Errable m) => m (StartSet (Maybe Word))
+startSetP :: Prsr (StartSet (Maybe Word))
 startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (char ','))
 
 -- FIXME: where StartSet1 constructor?
-startP :: (TokenParsing m, Errable m) => m (StartSet (Maybe Word))
+startP :: Prsr (StartSet (Maybe Word))
 startP = startSetP <|> startArrayP
 
-locationP :: (TokenParsing m, Errable m) => m (Location (Maybe Word) (Maybe Word))
+locationP :: Prsr (Location (Maybe Word) (Maybe Word))
 locationP =
   mkInterval <$> wordP <*> (char ':' *> wordP) <|>
   flip Location <$> optional wordP <*> (char '@' *> startP) <|>
@@ -69,7 +85,7 @@ locationP =
       mkOneWord Nothing = Location (StartSet1 Nothing) (Just 1)
       mkOneWord at      = Location (StartSet1 at)      (Nothing)
 
-mlayoutWordWidthP :: (TokenParsing m, Errable m) => m (Location (Maybe Word) (Maybe Word))
+mlayoutWordWidthP :: Prsr (Location (Maybe Word) (Maybe Word))
 mlayoutWordWidthP = do
   w <- mlayoutWordWidthP'
   s <- option (StartSet1 Nothing) (char '@' *> startP)
@@ -81,53 +97,53 @@ mlayoutWordWidthP = do
                                         4 <$ string "32" <|>
                                         8 <$ string "64")
 
-layoutLocationP :: (TokenParsing m, Errable m) => m (Location (Maybe Word) (Maybe Word))
+layoutLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
 layoutLocationP = brackets (mlayoutWordWidthP <|> locationP) <?> "layout location"
 
-bitmapLocationP :: (TokenParsing m, Errable m) => m (Location (Maybe Word) (Maybe Word))
+bitmapLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
 bitmapLocationP = angles locationP <?> "bitfield location"
 
-nameP :: (TokenParsing m, Errable m) => m Text
+nameP :: Prsr Text
 nameP = pack <$> (token $ some $ satisfyRange 'A' 'Z') <?> "name of item"
 
-docP :: (TokenParsing m, Errable m) => m Text
+docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
   where
     untilEOLOrBrace = pack <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
 
 data ValueItem = ValueItem Integer Text Text deriving Show
 
-valueItemP :: (TokenParsing m, Errable m) => m ValueItem
+valueItemP :: Prsr ValueItem
 valueItemP = (char '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 type BitmapBody = [Either ValueItem BitmapItem]
 
-bitmapBodyP :: (TokenParsing m, Errable m) => m BitmapBody
+bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = some (Left <$> valueItemP <|> Right <$> bitmapItemP)
 
 data BitmapItem = BitmapItem (Location (Maybe Word) (Maybe Word)) Text Text (Maybe BitmapBody) deriving Show
 
-bitmapItemP :: (TokenParsing m, Errable m) => m BitmapItem
+bitmapItemP :: Prsr BitmapItem
 bitmapItemP = (BitmapItem <$> bitmapLocationP <*> nameP <*> docP <*> optional (braces bitmapBodyP)) <?> "bitmap item"
 
 type LayoutBody = Either [LayoutItem] BitmapBody
 
-layoutBodyP :: (TokenParsing m, Errable m) => m LayoutBody
+layoutBodyP :: Prsr LayoutBody
 layoutBodyP = Left <$> (some layoutItemP) <|> Right <$> bitmapBodyP
 
 data LayoutItem = LayoutItem (Location (Maybe Word) (Maybe Word)) Text Text (Maybe LayoutBody) deriving Show
 
-layoutItemP :: (TokenParsing m, Errable m) => m LayoutItem
+layoutItemP :: Prsr LayoutItem
 layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
-newtype MLayoutParser a = MLayoutParser { runMLayoutParser :: Parser a }
+newtype Prsr a = Prsr { runPrsr :: Parser a }
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
 
-instance TokenParsing MLayoutParser where
-  someSpace = buildSomeSpaceParser (MLayoutParser someSpace) $ CommentStyle "" "" "#" True
+instance TokenParsing Prsr where
+  someSpace = buildSomeSpaceParser (Prsr someSpace) $ CommentStyle "" "" "#" True
 -- use the default implementation for other methods:
 -- nesting, semi, highlight, token
 
 parser :: Parser [LayoutItem]
-parser = runMLayoutParser $ whiteSpace *> (some layoutItemP) <* eof
+parser = runPrsr $ whiteSpace *> (some layoutItemP) <* eof
