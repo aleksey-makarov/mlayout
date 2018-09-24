@@ -19,37 +19,20 @@ mapMaybe func ma = do
     Just b -> return b
     Nothing -> mzero
 
-testCaseOk :: String -> String -> TestTree
-testCaseOk name path = testCase name $ parseFromFileEx parser path >>= \ case
-  Success _ -> return ()
-  Failure e -> assertFailure $ "some error" -- ++ (show $ _errDoc e)
-
-testCaseError :: String -> String -> TestTree
-testCaseError name path = testCase name $ parseFromFileEx parser path >>= \ case
-  Success _ -> assertFailure "shold be error"
-  Failure _ -> return ()
-
 makeTestCase :: FilePath -> Maybe TestTree
 makeTestCase p =
-  if (dropExtension p) `hasExtension` "err"
-    then Just $ testCaseError (testName ++ " (E)") ps
-    else if p `hasExtension` "mlayout"
-      then Just $ testCaseOk testName ps
-      else Nothing
+  if p `hasExtension` "mlayout"
+    then Just $ if (dropExtension p) `hasExtension` "err"
+      -- FIXME: get one line description of error and pass it to assertFailure
+      then mkTestCase (testName ++ " (E)") ps (assertFailure "should fail") (return ())
+      else mkTestCase  testName            ps (return ())                   (assertFailure "should pass")
+    else Nothing
   where
     testName = encodeString $ basename p
     ps = encodeString p
+    mkTestCase name path ok failure = testCase name $ parseFromFileEx parser path >>= foldResult (const failure) (const ok)
 
 main :: IO ()
 main = do
   tests <- testGroup "Tests" <$> fold (mapMaybe makeTestCase $ ls "test") list
   defaultMain tests
-
-  -- result <- parseFromFile parser "test/trifecta.txt"
-  -- result <- parseFromFile parser "examples/example.mlayout"
-  -- case result of
-  --   Nothing -> exitFailure
-  --   Just x  -> do { print x; exitSuccess }
-
-
-
