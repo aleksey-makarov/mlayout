@@ -13,9 +13,7 @@ import           Text.Trifecta.Result
 import           Turtle
 
 mapMaybe :: MonadPlus m => (a -> Maybe b) -> m a -> m b
-mapMaybe func ma = do
-  v <- fmap func ma
-  case v of
+mapMaybe func ma = fmap func ma >>= \ case
     Just b -> return b
     Nothing -> mzero
 
