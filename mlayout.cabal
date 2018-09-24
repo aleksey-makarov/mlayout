@@ -31,6 +31,7 @@ test-suite mlayout-test
     main-is:             Main.hs
     build-depends:       base >= 4.9 && < 5
                        , mlayout
+                       , foldl
                        , trifecta >= 2
                        , tasty >= 1.1.0.3
                        , tasty-hunit >= 0.10.0.1
