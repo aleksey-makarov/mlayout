@@ -85,20 +85,20 @@ locationP =
       mkOneWord Nothing = Location (StartSet1 Nothing) (Just 1)
       mkOneWord at      = Location (StartSet1 at)      (Nothing)
 
-mlayoutWordWidthP :: Prsr (Location (Maybe Word) (Maybe Word))
-mlayoutWordWidthP = do
-  w <- mlayoutWordWidthP'
+locationWordP :: Prsr (Location (Maybe Word) (Maybe Word))
+locationWordP = do
+  w <- wordWidthP
   s <- option (StartSet1 Nothing) (char '@' *> startP)
   return $ Location s (Just w)
     where
-      mlayoutWordWidthP' :: TokenParsing m => m Word
-      mlayoutWordWidthP' = char '%' *> (1 <$ string "8"  <|>
-                                        2 <$ string "16" <|>
-                                        4 <$ string "32" <|>
-                                        8 <$ string "64")
+      wordWidthP = token (char '%' *> wordWidthDigitsP)
+      wordWidthDigitsP = 1 <$ string "8"  <|>
+                         2 <$ string "16" <|>
+                         4 <$ string "32" <|>
+                         8 <$ string "64"
 
 layoutLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
-layoutLocationP = brackets (mlayoutWordWidthP <|> locationP) <?> "layout location"
+layoutLocationP = brackets (locationWordP <|> locationP) <?> "layout location"
 
 bitmapLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
 bitmapLocationP = angles locationP <?> "bitfield location"
