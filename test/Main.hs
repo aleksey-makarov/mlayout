@@ -22,17 +22,17 @@ mapMaybe func ma = do
 testCaseOk :: String -> String -> TestTree
 testCaseOk name path = testCase name $ parseFromFileEx parser path >>= \ case
   Success _ -> return ()
-  Failure e -> assertFailure $ "some error: " ++ (show $ _errDoc e)
+  Failure e -> assertFailure $ "some error" -- ++ (show $ _errDoc e)
 
 testCaseError :: String -> String -> TestTree
-testCaseError name path = testCase name $ parseFromFile parser path >>= \ case
-  Just _  -> assertFailure "shold be error"
-  Nothing -> return ()
+testCaseError name path = testCase name $ parseFromFileEx parser path >>= \ case
+  Success _ -> assertFailure "shold be error"
+  Failure _ -> return ()
 
 makeTestCase :: FilePath -> Maybe TestTree
 makeTestCase p =
   if (dropExtension p) `hasExtension` "err"
-    then Just $ testCaseError testName ps
+    then Just $ testCaseError (testName ++ " (E)") ps
     else if p `hasExtension` "mlayout"
       then Just $ testCaseOk testName ps
       else Nothing
