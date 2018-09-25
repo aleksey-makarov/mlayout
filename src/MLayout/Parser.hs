@@ -72,8 +72,8 @@ startP = startSetP <|> startArrayP
 
 locationP :: Prsr (Location (Maybe Word) (Maybe Word))
 locationP =
-  mkInterval <$> wordP <*> (char ':' *> wordP) <|>
-  flip Location <$> optional wordP <*> (char '@' *> startP) <|>
+  mkInterval <$> wordP <*> (symbolic ':' *> wordP) <|>
+  flip Location <$> optional wordP <*> (symbolic '@' *> startP) <|>
   mkOneWord <$> optional wordP
     where
       mkInterval :: Word -> Word -> Location (Maybe Word) (Maybe Word)
