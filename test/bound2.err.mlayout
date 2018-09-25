@@ -1,0 +1,2 @@
+[ 0xffffffffffffffff] OK   should be ok
+[0x10000000000000000] FAIL should fail on 64 bit platforms (FIXME: Use Word64 for addresses)

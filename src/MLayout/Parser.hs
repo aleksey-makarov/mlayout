@@ -39,13 +39,24 @@ data StartSet s
         }
     | StartSet1
         { _position :: s
-        } deriving Show
+        }
+    deriving Show
 
-data Location s w
-    = Location
-        { _start        :: StartSet s
-        , _width        :: w
-        } deriving (Show, Functor, Foldable, Traversable)
+-- data Location s w
+--     = Location
+--         { _start        :: StartSet s
+--         , _width        :: w
+--         } deriving (Show, Functor, Foldable, Traversable)
+
+data ParsedLocation
+    = UpTo
+        { _upTo :: Word
+        }
+    | StartWidth
+        { _start :: StartSet (Maybe Word)
+        , _width :: Maybe Word
+        }
+    deriving Show
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
 throw m = runFormat m $ raiseErr . failed . TL.unpack . TLB.toLazyText
@@ -60,47 +71,49 @@ wordP = do
 startArrayP :: Prsr (StartSet (Maybe Word))
 startArrayP = do
     start <- optional wordP
-    (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((char '+') *> wordP)
+    (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((symbolic '+') *> wordP)
     return $ StartSetPeriodic start n step
 
 startSetP :: Prsr (StartSet (Maybe Word))
-startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (char ','))
+startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
--- FIXME: where StartSet1 constructor?
 startP :: Prsr (StartSet (Maybe Word))
-startP = startSetP <|> startArrayP
+startP = symbolic '@' *> (startSetP <|> startArrayP)
 
-locationP :: Prsr (Location (Maybe Word) (Maybe Word))
-locationP =
-    mkInterval <$> wordP <*> (symbolic ':' *> wordP) <|>
-    flip Location <$> optional wordP <*> (symbolic '@' *> startP) <|>
-    mkOneWord <$> optional wordP
+locationP :: Prsr ParsedLocation
+locationP = do
+    firstWord <- optional wordP
+    (mkInterval firstWord <$> (symbolic ':' *> wordP))
+        <|> (flip StartWidth $ firstWord) <$> startP
+        <|> (return $ mkOneWord firstWord)
         where
-            mkInterval :: Word -> Word -> Location (Maybe Word) (Maybe Word)
-            mkInterval x y = Location (StartSet1 $ Just a) (Just $ b - a + 1)
+
+            mkInterval :: Maybe Word -> Word -> ParsedLocation
+            mkInterval (Just x) y = StartWidth (StartSet1 $ Just a) (Just $ b - a + 1)
                 where
                     (a, b) = if x > y then (y, x) else (x, y)
+            mkInterval Nothing y = UpTo y
 
-            mkOneWord :: Maybe Word -> Location (Maybe Word) (Maybe Word)
-            mkOneWord Nothing = Location (StartSet1 Nothing) (Just 1)
-            mkOneWord at      = Location (StartSet1 at)      (Nothing)
+            mkOneWord :: Maybe Word -> ParsedLocation
+            mkOneWord Nothing = StartWidth (StartSet1 Nothing) (Just 1)
+            mkOneWord at      = StartWidth (StartSet1 at)      (Nothing)
 
-locationWordP :: Prsr (Location (Maybe Word) (Maybe Word))
+locationWordP :: Prsr ParsedLocation
 locationWordP = do
     w <- wordWidthP
-    s <- option (StartSet1 Nothing) (char '@' *> startP)
-    return $ Location s (Just w)
+    s <- option (StartSet1 Nothing) startP
+    return $ StartWidth s (Just w)
         where
             wordWidthP = token (char '%' *> wordWidthDigitsP)
-            wordWidthDigitsP = 1 <$ string "8"  <|>
-                               2 <$ string "16" <|>
-                               4 <$ string "32" <|>
-                               8 <$ string "64"
+            wordWidthDigitsP  =  1 <$ string "8"
+                             <|> 2 <$ string "16"
+                             <|> 4 <$ string "32"
+                             <|> 8 <$ string "64"
 
-layoutLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
+layoutLocationP :: Prsr ParsedLocation
 layoutLocationP = brackets (locationWordP <|> locationP) <?> "layout location"
 
-bitmapLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
+bitmapLocationP :: Prsr ParsedLocation
 bitmapLocationP = angles locationP <?> "bitfield location"
 
 nameP :: Prsr Text
@@ -121,7 +134,7 @@ type BitmapBody = [Either ValueItem BitmapItem]
 bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = some (Left <$> valueItemP <|> Right <$> bitmapItemP)
 
-data BitmapItem = BitmapItem (Location (Maybe Word) (Maybe Word)) Text Text (Maybe BitmapBody) deriving Show
+data BitmapItem = BitmapItem ParsedLocation Text Text (Maybe BitmapBody) deriving Show
 
 bitmapItemP :: Prsr BitmapItem
 bitmapItemP = (BitmapItem <$> bitmapLocationP <*> nameP <*> docP <*> optional (braces bitmapBodyP)) <?> "bitmap item"
@@ -131,7 +144,7 @@ type LayoutBody = Either [LayoutItem] BitmapBody
 layoutBodyP :: Prsr LayoutBody
 layoutBodyP = Left <$> (some layoutItemP) <|> Right <$> bitmapBodyP
 
-data LayoutItem = LayoutItem (Location (Maybe Word) (Maybe Word)) Text Text (Maybe LayoutBody) deriving Show
+data LayoutItem = LayoutItem ParsedLocation Text Text (Maybe LayoutBody) deriving Show
 
 layoutItemP :: Prsr LayoutItem
 layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
