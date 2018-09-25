@@ -117,7 +117,9 @@ bitmapLocationP :: Prsr ParsedLocation
 bitmapLocationP = angles locationP <?> "bitfield location"
 
 nameP :: Prsr Text
-nameP = pack <$> (token $ some $ satisfyRange 'A' 'Z') <?> "name of item"
+nameP  =  pack <$> (token $ some $ satisfyRange 'A' 'Z')
+      <|> "" <$ symbolic '_'
+      <?> "name of item"
 
 docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"

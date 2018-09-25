@@ -33,4 +33,5 @@ makeTestCase p =
 main :: IO ()
 main = do
     tests <- testGroup "Tests" <$> fold (mapMaybe makeTestCase $ ls "test") list
-    defaultMain tests
+    examples <- testGroup "Examples" <$> fold (mapMaybe makeTestCase $ ls "examples") list
+    defaultMain $ testGroup "Everyting" [tests, examples]
