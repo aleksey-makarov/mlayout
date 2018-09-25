@@ -19,18 +19,18 @@ mapMaybe func ma = fmap func ma >>= \ case
 
 makeTestCase :: FilePath -> Maybe TestTree
 makeTestCase p =
-  if p `hasExtension` "mlayout"
-    then Just $ if (dropExtension p) `hasExtension` "err"
-      -- FIXME: get one line description of error and pass it to assertFailure
-      then mkTestCase (testName ++ " (E)") ps (assertFailure "should fail") (return ())
-      else mkTestCase  testName            ps (return ())                   (assertFailure "should pass")
-    else Nothing
-  where
-    testName = encodeString $ basename p
-    ps = encodeString p
-    mkTestCase name path ok failure = testCase name $ parseFromFileEx parser path >>= foldResult (const failure) (const ok)
+    if p `hasExtension` "mlayout"
+        then Just $ if (dropExtension p) `hasExtension` "err"
+            -- FIXME: get one line description of error and pass it to assertFailure
+            then mkTestCase (testName ++ " (E)") ps (assertFailure "should fail") (return ())
+            else mkTestCase  testName            ps (return ())                   (assertFailure "should pass")
+        else Nothing
+    where
+        testName = encodeString $ basename p
+        ps = encodeString p
+        mkTestCase name path ok failure = testCase name $ parseFromFileEx parser path >>= foldResult (const failure) (const ok)
 
 main :: IO ()
 main = do
-  tests <- testGroup "Tests" <$> fold (mapMaybe makeTestCase $ ls "test") list
-  defaultMain tests
+    tests <- testGroup "Tests" <$> fold (mapMaybe makeTestCase $ ls "test") list
+    defaultMain tests

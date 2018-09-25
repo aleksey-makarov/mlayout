@@ -6,8 +6,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module MLayout.Parser
-  ( parser
-  ) where
+    ( parser
+    ) where
 
 import           Control.Applicative
 import           Control.Monad
@@ -29,39 +29,39 @@ import           Text.Trifecta.Result
 -- type Val = Word64
 
 data StartSet s
-  = StartSet
-    { _startPositions :: NonEmpty (s, Text)
-    }
-  | StartSetPeriodic
-    { _positionFirst :: s
-    , _n             :: Word
-    , _step          :: s
-    }
-  | StartSet1
-    { _position :: s
-    } deriving Show
+    = StartSet
+        { _startPositions :: NonEmpty (s, Text)
+        }
+    | StartSetPeriodic
+        { _positionFirst :: s
+        , _n             :: Word
+        , _step          :: s
+        }
+    | StartSet1
+        { _position :: s
+        } deriving Show
 
 data Location s w
-  = Location
-    { _start        :: StartSet s
-    , _width        :: w
-    } deriving (Show, Functor, Foldable, Traversable)
+    = Location
+        { _start        :: StartSet s
+        , _width        :: w
+        } deriving (Show, Functor, Foldable, Traversable)
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
 throw m = runFormat m $ raiseErr . failed . TL.unpack . TLB.toLazyText
 
 wordP :: forall a m . (TokenParsing m, Errable m, Monad m, Num a, Integral a, Bounded a) => m a
 wordP = do
-  v <- natural
-  if v < toInteger (minBound :: a) || toInteger (maxBound :: a) < v
-    then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
-    else return $ fromInteger v
+    v <- natural
+    if v < toInteger (minBound :: a) || toInteger (maxBound :: a) < v
+        then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
+        else return $ fromInteger v
 
 startArrayP :: Prsr (StartSet (Maybe Word))
 startArrayP = do
-  start <- optional wordP
-  (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((char '+') *> wordP)
-  return $ StartSetPeriodic start n step
+    start <- optional wordP
+    (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((char '+') *> wordP)
+    return $ StartSetPeriodic start n step
 
 startSetP :: Prsr (StartSet (Maybe Word))
 startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (char ','))
@@ -72,30 +72,30 @@ startP = startSetP <|> startArrayP
 
 locationP :: Prsr (Location (Maybe Word) (Maybe Word))
 locationP =
-  mkInterval <$> wordP <*> (symbolic ':' *> wordP) <|>
-  flip Location <$> optional wordP <*> (symbolic '@' *> startP) <|>
-  mkOneWord <$> optional wordP
-    where
-      mkInterval :: Word -> Word -> Location (Maybe Word) (Maybe Word)
-      mkInterval x y = Location (StartSet1 $ Just a) (Just $ b - a + 1)
+    mkInterval <$> wordP <*> (symbolic ':' *> wordP) <|>
+    flip Location <$> optional wordP <*> (symbolic '@' *> startP) <|>
+    mkOneWord <$> optional wordP
         where
-          (a, b) = if x > y then (y, x) else (x, y)
+            mkInterval :: Word -> Word -> Location (Maybe Word) (Maybe Word)
+            mkInterval x y = Location (StartSet1 $ Just a) (Just $ b - a + 1)
+                where
+                    (a, b) = if x > y then (y, x) else (x, y)
 
-      mkOneWord :: Maybe Word -> Location (Maybe Word) (Maybe Word)
-      mkOneWord Nothing = Location (StartSet1 Nothing) (Just 1)
-      mkOneWord at      = Location (StartSet1 at)      (Nothing)
+            mkOneWord :: Maybe Word -> Location (Maybe Word) (Maybe Word)
+            mkOneWord Nothing = Location (StartSet1 Nothing) (Just 1)
+            mkOneWord at      = Location (StartSet1 at)      (Nothing)
 
 locationWordP :: Prsr (Location (Maybe Word) (Maybe Word))
 locationWordP = do
-  w <- wordWidthP
-  s <- option (StartSet1 Nothing) (char '@' *> startP)
-  return $ Location s (Just w)
-    where
-      wordWidthP = token (char '%' *> wordWidthDigitsP)
-      wordWidthDigitsP = 1 <$ string "8"  <|>
-                         2 <$ string "16" <|>
-                         4 <$ string "32" <|>
-                         8 <$ string "64"
+    w <- wordWidthP
+    s <- option (StartSet1 Nothing) (char '@' *> startP)
+    return $ Location s (Just w)
+        where
+            wordWidthP = token (char '%' *> wordWidthDigitsP)
+            wordWidthDigitsP = 1 <$ string "8"  <|>
+                               2 <$ string "16" <|>
+                               4 <$ string "32" <|>
+                               8 <$ string "64"
 
 layoutLocationP :: Prsr (Location (Maybe Word) (Maybe Word))
 layoutLocationP = brackets (locationWordP <|> locationP) <?> "layout location"
@@ -108,8 +108,8 @@ nameP = pack <$> (token $ some $ satisfyRange 'A' 'Z') <?> "name of item"
 
 docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
-  where
-    untilEOLOrBrace = pack <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
+    where
+        untilEOLOrBrace = pack <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
 
 data ValueItem = ValueItem Integer Text Text deriving Show
 
@@ -138,10 +138,10 @@ layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (b
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype Prsr a = Prsr { runPrsr :: Parser a }
-  deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
+    deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
 
 instance TokenParsing Prsr where
-  someSpace = buildSomeSpaceParser (Prsr someSpace) $ CommentStyle "" "" "#" True
+    someSpace = buildSomeSpaceParser (Prsr someSpace) $ CommentStyle "" "" "#" True
 -- use the default implementation for other methods:
 -- nesting, semi, highlight, token
 
