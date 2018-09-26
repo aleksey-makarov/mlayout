@@ -129,7 +129,7 @@ docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
 data ValueItem = ValueItem Integer Text Text deriving Show
 
 valueItemP :: Prsr ValueItem
-valueItemP = (char '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
+valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 type BitmapBody = [Either ValueItem BitmapItem]
 
