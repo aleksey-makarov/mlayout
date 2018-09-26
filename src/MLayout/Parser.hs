@@ -140,16 +140,18 @@ data Item s b
         }
     deriving Show
 
-data BitmapBody = BitmapBody [Either ValueItem BitmapItem] deriving Show
--- data BitmapBody
---     = BitmapBody
---         {   _values  :: [ValueItem]
---         ,   _bitmaps :: [BitmapItem]
---         }
---     deriving Show
+data BitmapBody
+    = BitmapBody
+        {   _values  :: [ValueItem]
+        ,   _bitmaps :: [BitmapItem]
+        }
+    deriving Show
 type BitmapItem = Item (StartSet Word) BitmapBody
 
-data LayoutBody = LayoutBody (Either [LayoutItem] BitmapBody) deriving Show
+data LayoutBody
+    = LayoutBody [LayoutItem]
+    | LayoutBodyBitmap BitmapBody
+    deriving Show
 type LayoutItem = Item (StartSet Word) LayoutBody
 
 -- FIXME
@@ -164,11 +166,23 @@ someFoldlM first next = first >>= f
     where
         f b' = (optional $ next b') >>= maybe (return b') f
 
+bitmapBodyFirstP :: Prsr BitmapBody
+bitmapBodyFirstP  =  (\ x -> BitmapBody [x] [ ]) <$> valueItemP
+                 <|> (\ x -> BitmapBody [ ] [x]) <$> bitmapItemP []
+
+bitmapBodyNextP :: BitmapBody -> Prsr BitmapBody
+bitmapBodyNextP (BitmapBody vs bms) =
+    do
+        v <- valueItemP
+        return $ BitmapBody (v : vs) bms
+    <|> do
+        bm <- bitmapItemP bms
+        return $ BitmapBody vs (bm : bms)
+
 bitmapBodyP :: Prsr BitmapBody
-bitmapBodyP = BitmapBody <$> some (Left <$> valueItemP <|> Right <$> bitmapItemP [])
+bitmapBodyP = someFoldlM bitmapBodyFirstP bitmapBodyNextP
 
 bitmapItemP :: [Item (StartSet Word) b] -> Prsr BitmapItem
--- bitmapItemP = (Item <$> bitmapLocationP <*> nameP <*> docP <*> optional (braces bitmapBodyP)) <?> "bitmap item"
 bitmapItemP elderSibs = (do
     l <- bitmapLocationP
     n <- nameP
@@ -177,11 +191,14 @@ bitmapItemP elderSibs = (do
     (s, w) <- resolve elderSibs b l
     return $ Item s w n d b) <?> "bitmap item"
 
+layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
+layoutBodyXP lis = (: lis) <$> layoutItemP lis
+
 layoutBodyP :: Prsr LayoutBody
-layoutBodyP = LayoutBody <$> (Left <$> (some $ layoutItemP []) <|> Right <$> bitmapBodyP)
+layoutBodyP  =  LayoutBodyBitmap <$> bitmapBodyP
+            <|> LayoutBody <$> someFoldlM (layoutBodyXP []) layoutBodyXP
 
 layoutItemP :: [Item (StartSet Word) b] -> Prsr LayoutItem
--- layoutItemP = (Item <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
 layoutItemP elderSibs = (do
     l <- layoutLocationP
     n <- nameP
