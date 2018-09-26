@@ -50,12 +50,10 @@ data StartSet s
 
 data ParsedLocation
     = UpTo
-        { _upTo :: Word
-        }
+        Word
     | StartWidth
-        { _start :: StartSet (Maybe Word)
-        , _width :: Maybe Word
-        }
+        (StartSet (Maybe Word))
+        (Maybe Word)
     deriving Show
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
@@ -131,25 +129,54 @@ data ValueItem = ValueItem Integer Text Text deriving Show
 valueItemP :: Prsr ValueItem
 valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
-type BitmapBody = [Either ValueItem BitmapItem]
+data Item s b
+    = Item
+        {   _start :: s
+        ,   _width :: Word
+        ,   _name  :: Text
+        ,   _doc   :: Text
+        ,   _body  :: Maybe b
+        }
+    deriving Show
+
+data BitmapBody = BitmapBody [Either ValueItem BitmapItem] deriving Show
+type BitmapItem = Item (StartSet Word) BitmapBody
+
+data LayoutBody = LayoutBody (Either [LayoutItem] BitmapBody) deriving Show
+type LayoutItem = Item (StartSet Word) LayoutBody
+
+-- FIXME
+-- type LayoutTopItem = Item () LayoutBody
+
+-- FIXME
+resolve :: [Item (StartSet Word) b] -> a -> ParsedLocation -> Prsr (StartSet Word, Word)
+resolve _ _ _ = return (StartSet1 0, 0)
 
 bitmapBodyP :: Prsr BitmapBody
-bitmapBodyP = some (Left <$> valueItemP <|> Right <$> bitmapItemP)
+bitmapBodyP = BitmapBody <$> some (Left <$> valueItemP <|> Right <$> bitmapItemP [])
 
-data BitmapItem = BitmapItem ParsedLocation Text Text (Maybe BitmapBody) deriving Show
-
-bitmapItemP :: Prsr BitmapItem
-bitmapItemP = (BitmapItem <$> bitmapLocationP <*> nameP <*> docP <*> optional (braces bitmapBodyP)) <?> "bitmap item"
-
-type LayoutBody = Either [LayoutItem] BitmapBody
+bitmapItemP :: [Item (StartSet Word) b] -> Prsr BitmapItem
+-- bitmapItemP = (Item <$> bitmapLocationP <*> nameP <*> docP <*> optional (braces bitmapBodyP)) <?> "bitmap item"
+bitmapItemP elderSibs = (do
+    l <- bitmapLocationP
+    n <- nameP
+    d <- docP
+    b <- optional (braces bitmapBodyP)
+    (s, w) <- resolve elderSibs b l
+    return $ Item s w n d b) <?> "bitmap item"
 
 layoutBodyP :: Prsr LayoutBody
-layoutBodyP = Left <$> (some layoutItemP) <|> Right <$> bitmapBodyP
+layoutBodyP = LayoutBody <$> (Left <$> (some $ layoutItemP []) <|> Right <$> bitmapBodyP)
 
-data LayoutItem = LayoutItem ParsedLocation Text Text (Maybe LayoutBody) deriving Show
-
-layoutItemP :: Prsr LayoutItem
-layoutItemP = (LayoutItem <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
+layoutItemP :: [Item (StartSet Word) b] -> Prsr LayoutItem
+-- layoutItemP = (Item <$> layoutLocationP <*> nameP <*> docP <*> optional (braces layoutBodyP)) <?> "layout item"
+layoutItemP elderSibs = (do
+    l <- layoutLocationP
+    n <- nameP
+    d <- docP
+    b <- optional (braces layoutBodyP)
+    (s, w) <- resolve elderSibs b l
+    return $ Item s w n d b) <?> "layout item"
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype Prsr a = Prsr { runPrsr :: Parser a }
@@ -161,4 +188,4 @@ instance TokenParsing Prsr where
 -- nesting, semi, highlight, token
 
 parser :: Parser [LayoutItem]
-parser = runPrsr $ whiteSpace *> (some layoutItemP) <* eof
+parser = runPrsr $ whiteSpace *> (some $ layoutItemP []) <* eof
