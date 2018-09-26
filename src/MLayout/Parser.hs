@@ -71,7 +71,7 @@ wordP = do
 startArrayP :: Prsr (StartSet (Maybe Word))
 startArrayP = do
     start <- optional wordP
-    (n, step) <- option (1, Nothing) $ braces $ (,) <$> wordP <*> optional ((symbolic '+') *> wordP)
+    (n, step) <- option (1, Nothing) $ brackets $ (,) <$> wordP <*> optional ((symbolic '+') *> wordP)
     return $ StartSetPeriodic start n step
 
 startSetP :: Prsr (StartSet (Maybe Word))

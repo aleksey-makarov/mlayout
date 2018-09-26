@@ -75,10 +75,10 @@
 
   # one 8-byte word at 0x48
   [%64@0x48] B4 Docs for B4 {
-    # FIXME <2@2[3 +4]> E1            Docs for E1
+    <2@2[3 +4]> E1            Docs for E1
                               # 2 bits in each of 3 fields with step 4
                               # 2:3, 6:7, 10:11
-    # FIXME <@12[4]> E2               Docs for E2
+    <@12[4]> E2               Docs for E2
                               # 1 bit in each of 4 fields
                               # 12:15
     <> _ lalala
