@@ -159,12 +159,10 @@ type LayoutItem = Item (StartSet Word) LayoutBody
 resolve :: [Item (StartSet Word) b] -> a -> ParsedLocation -> Prsr (StartSet Word, Word)
 resolve _ _ _ = return (StartSet1 0, 0)
 
-manyFoldlM :: (Alternative m, Monad m) => m a -> (b -> a -> m b) -> b -> m b
-manyFoldlM a opp b = f b
+someFoldlM :: (Alternative m, Monad m) => m b -> (b -> m b) -> m b
+someFoldlM first next = first >>= f
     where
-      f b' = (optional a) >>= \ case
-          Nothing -> return b'
-          Just a' -> b' `opp` a' >>= f
+        f b' = (optional $ next b') >>= maybe (return b') f
 
 bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = BitmapBody <$> some (Left <$> valueItemP <|> Right <$> bitmapItemP [])
