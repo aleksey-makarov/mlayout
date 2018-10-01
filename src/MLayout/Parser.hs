@@ -5,6 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module MLayout.Parser
     ( parser
@@ -13,6 +14,7 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
+import           Data.Foldable as F
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
@@ -166,18 +168,82 @@ upperBoundLayoutBody (LayoutBodyBitmap (BitmapBody _ bms)) = (upperBoundItemList
 
 upperBoundItemList :: [Item (StartSet Word) b] -> Word
 upperBoundItemList = P.foldl f 0
-  where
-    f x = max x . upperBoundItem
+    where
+        f x = max x . upperBoundItem
 
--- FIXME
 resolve :: [Item (StartSet Word) b] -> Word -> ParsedLocation -> Prsr (StartSet Word, Word)
-resolve elderSibs width pl = return (StartSet1 0, 0)
+resolve elderSibs childrenWidth (UpTo u) = do
+    when (u < f) $ throw "upper limit is too small"
+    when (w' < childrenWidth) $ throw "width is too small"
+    return (StartSet1 f, w')
+    where
+        f = upperBoundItemList elderSibs
+        w' = u - f + 1
+resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
+    (, childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
+resolve elderSibs childrenWidth (StartWidth ss (Just w))  = do
+    when (w < childrenWidth) $ throw "width is too small @2"
+    (, w) <$> resolveParsedLocation elderSibs ss w
+
+intersects :: (Word, Word) -> (Word, Word) -> Bool
+intersects = undefined
+
+intersectsList :: (Word, Word) -> [(Word, Word)] -> Bool
+intersectsList = undefined
+
+intersectsItems :: (Word, Word) -> [Item (StartSet Word) b] -> Bool
+intersectsItems = undefined
+
+resolveParsedLocation :: [Item (StartSet Word) b] -> StartSet (Maybe Word) -> Word -> Prsr (StartSet Word)
+resolveParsedLocation elderSibs ur w = maybe (throw "intersects") return (resolve' ur)
+    where
+        resolve' :: StartSet (Maybe Word) -> Maybe (StartSet Word)
+        resolve' (StartSet1 s)               = StartSet1 . snd <$> resolvePosition wrs s
+        resolve' (StartSet ss)               = StartSet <$> resolveStartSet ss
+        resolve' (StartSetPeriodic s n step) = StartSetPeriodic <$> resolvePeriodic <*> Just n <*> Just step'
+            where
+                step' = maybe w id step
+                -- FIXME: check that *all* intervals do not intersect
+                resolvePeriodic = snd <$> resolvePosition wrs s
+
+        wrs :: Word
+        wrs = upperBoundItemList elderSibs
+
+        -- | Resolves the start of the layout
+        resolvePosition :: Word               -- ^ First available position
+                        -> Maybe Word         -- ^ Where the layout should start, if specified
+                        -> Maybe (Word, Word) -- ^ (The new first available position, the resolved start)
+        resolvePosition at Nothing   = Just (at + w, at)
+        resolvePosition at (Just s') = if s' < at
+            then if intersectsItems (s', s' + w) elderSibs
+                then Nothing
+                else Just (at, s')
+            else Just (s' + w, s')
+
+        resolveStartSet :: NonEmpty (Maybe Word, Text) -> Maybe (NonEmpty (Word, Text))
+        -- FIXME: absolutely incorrect: wrong order
+        resolveStartSet ((s, n) :| sns) = do
+            (at', s') <- resolvePosition wrs s
+            ((s', n) :| ) . snd <$> F.foldr f (Just (at', [])) sns
+
+        f :: (Maybe Word, Text) -> Maybe (Word, [(Word, Text)]) -> Maybe (Word, [(Word, Text)])
+        f (s, n) state = do
+            (at, sns) <- state
+            (at', s') <- resolvePosition at s
+            checkPrev (P.map fst sns) s'
+            return (at', (s', n) : sns)
+
+        checkPrev :: [Word] -> Word -> Maybe ()
+        checkPrev sns s = if intersectsList (s, s + w) (P.map (\ x -> (x, x + w)) sns)
+            then Nothing
+            else Just ()
 
 someFoldlM :: (Alternative m, Monad m) => m b -> (b -> m b) -> m b
 someFoldlM first next = first >>= f
     where
         f b' = (optional $ next b') >>= maybe (return b') f
 
+-- FIXME: should be reversed
 bitmapBodyFirstP :: Prsr BitmapBody
 bitmapBodyFirstP  =  (\ x -> BitmapBody [x] [ ]) <$> valueItemP
                  <|> (\ x -> BitmapBody [ ] [x]) <$> bitmapItemP []
@@ -204,6 +270,7 @@ bitmapItemP elderSibs = (do
     (s, w) <- resolve elderSibs bw l
     return $ Item s w n d b) <?> "bitmap item"
 
+-- FIXME: should be reversed
 layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
 layoutBodyXP lis = (: lis) <$> layoutItemP lis
 
