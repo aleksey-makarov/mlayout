@@ -38,7 +38,7 @@ data StartSet s
         }
     | StartSetPeriodic
         { _positionFirst :: s
-        , _n             :: Word
+        , _n             :: Word -- >= 2
         , _step          :: s
         }
     | StartSet1
@@ -55,7 +55,7 @@ data ParsedLocation
     deriving Show
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
-throw m = runFormat m $ raiseErr . failed . TL.unpack . TLB.toLazyText
+throw f = runFormat f $ raiseErr . failed . TL.unpack . TLB.toLazyText
 
 wordP :: forall a m . (TokenParsing m, Errable m, Monad m, Num a, Integral a, Bounded a) => m a
 wordP = do
@@ -67,8 +67,8 @@ wordP = do
 startArrayP :: Prsr (StartSet (Maybe Word))
 startArrayP = do
     start <- optional wordP
-    (n, step) <- option (1, Nothing) $ brackets $ (,) <$> wordP <*> optional ((symbolic '+') *> wordP)
-    return $ StartSetPeriodic start n step
+    (brackets $ StartSetPeriodic start <$> wordP <*> optional ((symbolic '+') *> wordP)) -- FIXME: n should be >= 2
+        <|> (return $ StartSet1 start)
 
 startSetP :: Prsr (StartSet (Maybe Word))
 startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
@@ -81,7 +81,7 @@ locationP = do
     firstWord <- optional wordP
     (mkInterval firstWord <$> (symbolic ':' *> wordP))
         <|> (flip StartWidth $ firstWord) <$> startP
-        <|> (return $ mkOneWord firstWord)
+        <|> (return $ StartWidth (StartSet1 Nothing) firstWord)
         where
 
             mkInterval :: Maybe Word -> Word -> ParsedLocation
@@ -89,10 +89,6 @@ locationP = do
                 where
                     (a, b) = if x > y then (y, x) else (x, y)
             mkInterval Nothing y = UpTo y
-
-            mkOneWord :: Maybe Word -> ParsedLocation
-            mkOneWord Nothing = StartWidth (StartSet1 Nothing) (Just 1)
-            mkOneWord at      = StartWidth (StartSet1 at)      (Nothing)
 
 locationWordP :: Prsr ParsedLocation
 locationWordP = do
@@ -182,11 +178,8 @@ resolve elderSibs childrenWidth (UpTo u) = do
 resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
     (, childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
 resolve elderSibs childrenWidth (StartWidth ss (Just w))  = do
-    when (w < childrenWidth) $ throw "width is too small @2"
+    when (w < childrenWidth) $ throw ("width is too small @2, w: " % int % "; childrenWidth: " % int) w childrenWidth
     (, w) <$> resolveParsedLocation elderSibs ss w
-
-intersects :: (Word, Word) -> (Word, Word) -> Bool
-intersects = undefined
 
 intersectsList :: (Word, Word) -> [(Word, Word)] -> Bool
 intersectsList = undefined

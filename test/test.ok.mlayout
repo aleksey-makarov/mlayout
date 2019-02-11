@@ -2,7 +2,7 @@
 
 # some comment
 [2] NAMEX   "doc number two"
-[3] NAMEXX  "doc number three" {
+[4] NAMEXX  "doc number three" {
 
   # some more
   # comments
