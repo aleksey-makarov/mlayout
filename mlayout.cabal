@@ -24,6 +24,7 @@ library
                        , parsers >= 0.12.9
                        , text >= 1.2.3.0
                        , trifecta >= 2
+                       , vector
     default-language:    Haskell2010
 
 test-suite mlayout-test
@@ -44,7 +45,7 @@ executable mlayout-test1
     hs-source-dirs:      test
     main-is:             Main1.hs
     build-depends:       base >= 4.9 && < 5
-                       , aeson
+                       , aeson-pretty
                        , bytestring
                        , mlayout
                        , foldl

@@ -22,7 +22,8 @@ import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-import           Formatting (Format, runFormat, int, (%))
+import           Data.Vector as V (fromList)
+import           Formatting (Format, runFormat, int, (%), sformat)
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
@@ -150,8 +151,24 @@ data LayoutBody
     deriving Show
 type LayoutItem = Item (StartSet Word) LayoutBody
 
-instance ToJSON LayoutItem where
-    toJSON = undefined
+-- instance ToJSON LayoutItem where
+--     toJSON = undefined
+
+-- FIXME: use this for itemToList
+itemToList :: Item (StartSet Word) b -> [(Word, Word)]
+itemToList (Item (StartSet1 s) w _ _ _) = [(s, s + w)]
+itemToList (Item (StartSet ss) w _ _ _) = LNE.toList $ fmap f ss
+    where
+        f (s, _) = (s, s + w)
+itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
+    where
+        f n' = let s' = first + n' * step in (s', s' + w)
+
+instance ToJSON (Item (StartSet Word) b) where
+    toJSON x = object ["name" .= String (_name x), "spans" .= spans]
+        where
+            spans = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
+            pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
@@ -195,15 +212,6 @@ intersectsList p = F.any (intersectPair p)
 
 intersectsItems :: (Word, Word) -> [Item (StartSet Word) b] -> Bool
 intersectsItems p = intersectsList p . F.concat . fmap itemToList
-    where
-        itemToList :: Item (StartSet Word) b -> [(Word, Word)]
-        itemToList (Item (StartSet1 s) w _ _ _) = [(s, s + w)]
-        itemToList (Item (StartSet ss) w _ _ _) = LNE.toList $ fmap f ss
-            where
-                f (s, _) = (s, s + w)
-        itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
-            where
-                f n' = let s' = first + n' * step in (s', s' + w)
 
 resolveParsedLocation :: [Item (StartSet Word) b] -> StartSet (Maybe Word) -> Word -> Prsr (StartSet Word)
 resolveParsedLocation elderSibs unresolvedStart widthOfThisItem = maybe (throw "intersects") return (resolve' unresolvedStart)
