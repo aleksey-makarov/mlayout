@@ -176,9 +176,9 @@ resolve elderSibs childrenWidth (UpTo maxIndex) = do
         widthOfThisItem = maxIndex + 1 - upperBoundOfSibs
 resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
     (, childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
-resolve elderSibs childrenWidth (StartWidth ss (Just w))  = do
-    when (w < childrenWidth) $ throw ("width is too small @2, w: " % int % "; childrenWidth: " % int) w childrenWidth
-    (, w) <$> resolveParsedLocation elderSibs ss w
+resolve elderSibs childrenWidth (StartWidth ss (Just widthOfThisItem))  = do
+    when (widthOfThisItem < childrenWidth) $ throw ("width is too small @2, widthOfThisItem: " % int % "; childrenWidth: " % int) widthOfThisItem childrenWidth
+    (, widthOfThisItem) <$> resolveParsedLocation elderSibs ss widthOfThisItem
 
 -- FIXME: not only for Word
 intersectPair :: (Word, Word) -> (Word, Word) -> Bool
@@ -200,35 +200,35 @@ intersectsItems p = intersectsList p . F.concat . fmap itemToList
                 f n' = let s' = first + n' * step in (s', s' + w)
 
 resolveParsedLocation :: [Item (StartSet Word) b] -> StartSet (Maybe Word) -> Word -> Prsr (StartSet Word)
-resolveParsedLocation elderSibs ur w = maybe (throw "intersects") return (resolve' ur)
+resolveParsedLocation elderSibs unresolvedStart widthOfThisItem = maybe (throw "intersects") return (resolve' unresolvedStart)
     where
         resolve' :: StartSet (Maybe Word) -> Maybe (StartSet Word)
-        resolve' (StartSet1 s)               = StartSet1 . snd <$> resolvePosition wrs s
+        resolve' (StartSet1 s)               = StartSet1 . snd <$> resolvePosition upperBoundOfSibs s
         resolve' (StartSet ss)               = StartSet <$> resolveStartSet ss
         resolve' (StartSetPeriodic s n step) = StartSetPeriodic <$> resolvePeriodic <*> Just n <*> Just step'
             where
-                step' = maybe w id step
+                step' = maybe widthOfThisItem id step
                 -- FIXME: check that *all* intervals do not intersect
-                resolvePeriodic = snd <$> resolvePosition wrs s
+                resolvePeriodic = snd <$> resolvePosition upperBoundOfSibs s
 
-        wrs :: Word
-        wrs = upperBoundItemList elderSibs
+        upperBoundOfSibs :: Word
+        upperBoundOfSibs = upperBoundItemList elderSibs
 
         -- | Resolves the start of the layout
         resolvePosition :: Word               -- ^ First available position
                         -> Maybe Word         -- ^ Where the layout should start, if specified
                         -> Maybe (Word, Word) -- ^ (The new first available position, the resolved start)
-        resolvePosition at Nothing   = Just (at + w, at)
-        resolvePosition at (Just s') = if s' < at
-            then if intersectsItems (s', s' + w) elderSibs
+        resolvePosition firstAvailable Nothing   = Just (firstAvailable + widthOfThisItem, firstAvailable)
+        resolvePosition firstAvailable (Just s) = if s < firstAvailable
+            then if intersectsItems (s, s + widthOfThisItem) elderSibs
                 then Nothing
-                else Just (at, s')
-            else Just (s' + w, s')
+                else Just (firstAvailable, s)
+            else Just (s + widthOfThisItem, s)
 
         resolveStartSet :: NonEmpty (Maybe Word, Text) -> Maybe (NonEmpty (Word, Text))
         -- FIXME: absolutely incorrect: wrong order
         resolveStartSet ((s, n) :| sns) = do
-            (at', s') <- resolvePosition wrs s
+            (at', s') <- resolvePosition upperBoundOfSibs s
             ((s', n) :| ) . snd <$> F.foldr f (Just (at', [])) sns
 
         f :: (Maybe Word, Text) -> Maybe (Word, [(Word, Text)]) -> Maybe (Word, [(Word, Text)])
@@ -239,7 +239,7 @@ resolveParsedLocation elderSibs ur w = maybe (throw "intersects") return (resolv
             return (at', (s', n) : sns)
 
         checkPrev :: [Word] -> Word -> Maybe ()
-        checkPrev sns s = if intersectsList (s, s + w) (P.map (\ x -> (x, x + w)) sns)
+        checkPrev sns s = if intersectsList (s, s + widthOfThisItem) (P.map (\ x -> (x, x + widthOfThisItem)) sns)
             then Nothing
             else Just ()
 
