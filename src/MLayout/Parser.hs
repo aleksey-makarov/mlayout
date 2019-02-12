@@ -181,11 +181,24 @@ resolve elderSibs childrenWidth (StartWidth ss (Just w))  = do
     when (w < childrenWidth) $ throw ("width is too small @2, w: " % int % "; childrenWidth: " % int) w childrenWidth
     (, w) <$> resolveParsedLocation elderSibs ss w
 
+-- FIXME: not only for Word
+intersectPair :: (Word, Word) -> (Word, Word) -> Bool
+intersectPair (l, r) (l', r') = if l < l' then l' < r else l < r'
+
 intersectsList :: (Word, Word) -> [(Word, Word)] -> Bool
-intersectsList = undefined
+intersectsList p = F.any (intersectPair p)
 
 intersectsItems :: (Word, Word) -> [Item (StartSet Word) b] -> Bool
-intersectsItems = undefined
+intersectsItems p = intersectsList p . F.concat . fmap itemToList
+    where
+        itemToList :: Item (StartSet Word) b -> [(Word, Word)]
+        itemToList (Item (StartSet1 s) w _ _ _) = [(s, s + w)]
+        itemToList (Item (StartSet ss) w _ _ _) = LNE.toList $ fmap f ss
+            where
+                f (s, _) = (s, s + w)
+        itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
+            where
+                f n' = let s' = first + n' * step in (s', s' + w)
 
 resolveParsedLocation :: [Item (StartSet Word) b] -> StartSet (Maybe Word) -> Word -> Prsr (StartSet Word)
 resolveParsedLocation elderSibs ur w = maybe (throw "intersects") return (resolve' ur)
