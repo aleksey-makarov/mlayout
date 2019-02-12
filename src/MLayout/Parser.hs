@@ -150,17 +150,17 @@ type LayoutItem = Item (StartSet Word) LayoutBody
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
 
-upperBoundStartSet :: StartSet Word -> Word
-upperBoundStartSet (StartSet ss)            = maximum $ LNE.map fst ss
-upperBoundStartSet (StartSetPeriodic f n s) = f + (n - 1) * s
-upperBoundStartSet (StartSet1 s)            = s
+maxStartSet :: StartSet Word -> Word
+maxStartSet (StartSet ss)            = maximum $ LNE.map fst ss
+maxStartSet (StartSetPeriodic f n s) = f + (n - 1) * s
+maxStartSet (StartSet1 s)            = s
 
 upperBoundItem :: Item (StartSet Word) b -> Word
-upperBoundItem (Item s w _ _ _) = w + upperBoundStartSet s
+upperBoundItem (Item s w _ _ _) = w + maxStartSet s
 
 upperBoundLayoutBody :: LayoutBody -> Word
 upperBoundLayoutBody (LayoutBody lb) = upperBoundItemList lb
-upperBoundLayoutBody (LayoutBodyBitmap (BitmapBody _ bms)) = (upperBoundItemList bms + 7) `div` 8
+upperBoundLayoutBody (LayoutBodyBitmap (BitmapBody _ bms)) = (upperBoundItemList bms) `div` 8
 
 upperBoundItemList :: [Item (StartSet Word) b] -> Word
 upperBoundItemList = P.foldl f 0
