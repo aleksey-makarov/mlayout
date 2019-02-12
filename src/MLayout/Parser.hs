@@ -22,8 +22,8 @@ import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-import           Data.Vector as V (fromList)
-import           Formatting (Format, runFormat, int, (%), sformat)
+import           Data.Vector as V (fromList, empty)
+import           Formatting (Format, runFormat, int, stext, (%), sformat)
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
@@ -151,9 +151,6 @@ data LayoutBody
     deriving Show
 type LayoutItem = Item (StartSet Word) LayoutBody
 
--- instance ToJSON LayoutItem where
---     toJSON = undefined
-
 -- FIXME: use this for itemToList
 itemToList :: Item (StartSet Word) b -> [(Word, Word)]
 itemToList (Item (StartSet1 s) w _ _ _) = [(s, s + w)]
@@ -164,11 +161,24 @@ itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
 
-instance ToJSON (Item (StartSet Word) b) where
-    toJSON x = object ["name" .= String (_name x), "spans" .= spans]
+spans :: Item (StartSet Word) b -> Value
+spans x = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
+    where
+        pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
+
+instance ToJSON LayoutItem where
+    toJSON x = object [name .= spans x] -- , "children" .= (children $ _body x)]
         where
-            spans = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
-            pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
+            name = sformat ("[" % stext % "]") (_name x)
+            children (LayoutBody lis) = Array $ V.fromList undefined
+            children (LayoutBodyBitmap lbb) = Array $ V.fromList undefined
+
+instance ToJSON BitmapItem where
+    toJSON x = object [name .= spans x, "children" .= children]
+        where
+            name = sformat ("<" % stext % ">") (_name x)
+            children :: Value
+            children = Array V.empty
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
