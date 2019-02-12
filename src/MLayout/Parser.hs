@@ -1,11 +1,13 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Parser
     ( parser
@@ -14,6 +16,7 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
+import           Data.Aeson
 import           Data.Foldable as F
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
@@ -146,6 +149,9 @@ data LayoutBody
     | LayoutBodyBitmap BitmapBody
     deriving Show
 type LayoutItem = Item (StartSet Word) LayoutBody
+
+instance ToJSON LayoutItem where
+    toJSON = undefined
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody

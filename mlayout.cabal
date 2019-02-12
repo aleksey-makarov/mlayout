@@ -19,6 +19,7 @@ library
     exposed-modules:     MLayout.Parser
     ghc-options:         -Wall
     build-depends:       base >= 4.9 && < 5
+                       , aeson
                        , formatting >= 6.3.6
                        , parsers >= 0.12.9
                        , text >= 1.2.3.0
@@ -43,6 +44,8 @@ executable mlayout-test1
     hs-source-dirs:      test
     main-is:             Main1.hs
     build-depends:       base >= 4.9 && < 5
+                       , aeson
+                       , bytestring
                        , mlayout
                        , foldl
                        , trifecta >= 2
