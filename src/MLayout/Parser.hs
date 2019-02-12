@@ -48,7 +48,7 @@ data StartSet s
 
 data ParsedLocation
     = UpTo
-        Word
+        Word -- this is maximum, not upper bound
     | StartWidth
         (StartSet (Maybe Word))
         (Maybe Word)
@@ -168,13 +168,12 @@ upperBoundItemList = P.foldl f 0
         f x = max x . upperBoundItem
 
 resolve :: [Item (StartSet Word) b] -> Word -> ParsedLocation -> Prsr (StartSet Word, Word)
-resolve elderSibs childrenWidth (UpTo u) = do
-    when (u < f) $ throw "upper limit is too small"
-    when (w' < childrenWidth) $ throw "width is too small"
-    return (StartSet1 f, w')
+resolve elderSibs childrenWidth (UpTo maxIndex) = do
+    when (widthOfThisItem < childrenWidth) $ throw "width is too small"
+    return (StartSet1 upperBoundOfSibs, widthOfThisItem)
     where
-        f = upperBoundItemList elderSibs
-        w' = u - f + 1
+        upperBoundOfSibs = upperBoundItemList elderSibs
+        widthOfThisItem = maxIndex + 1 - upperBoundOfSibs
 resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
     (, childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
 resolve elderSibs childrenWidth (StartWidth ss (Just w))  = do
