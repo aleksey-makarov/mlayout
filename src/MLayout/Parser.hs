@@ -241,7 +241,7 @@ resolve elderSibs childrenWidth (UpTo maxIndex) = do
         upperBoundOfSibs = upperBoundItemList elderSibs
         widthOfThisItem = maxIndex + 1 - upperBoundOfSibs
 resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
-    (, childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
+    (, max 1 childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
 resolve elderSibs childrenWidth (StartWidth ss (Just widthOfThisItem))  = do
     when (widthOfThisItem < childrenWidth) $ throw ("width is too small @2, widthOfThisItem: " % int % "; childrenWidth: " % int) widthOfThisItem childrenWidth
     (, widthOfThisItem) <$> resolveParsedLocation elderSibs ss widthOfThisItem
