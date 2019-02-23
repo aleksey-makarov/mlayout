@@ -22,6 +22,7 @@ library
                        , aeson
                        , formatting >= 6.3.6
                        , parsers >= 0.12.9
+                       , prettyprinter
                        , text >= 1.2.3.0
                        , trifecta >= 2
                        , vector
@@ -45,10 +46,10 @@ executable mlayout-test1
     hs-source-dirs:      test
     main-is:             Main1.hs
     build-depends:       base >= 4.9 && < 5
-                       , aeson-pretty
                        , bytestring
                        , mlayout
                        , foldl
+                       , prettyprinter
                        , trifecta >= 2
                        , turtle >= 1.5.10
     ghc-options:         -Wall -threaded

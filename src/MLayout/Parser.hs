@@ -16,14 +16,15 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
-import           Data.Aeson
+-- import           Data.Aeson
 import           Data.Foldable as F
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-import           Data.Vector as V (fromList, empty)
-import           Formatting (Format, runFormat, int, stext, (%), sformat)
+-- import           Data.Vector as V (fromList, empty)
+-- import           Formatting (Format, runFormat, int, stext, (%), sformat)
+import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
@@ -31,6 +32,8 @@ import           Text.Parser.Token
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
+import qualified Data.Text.Prettyprint.Doc as PPD
+import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 
 -- type Addr = Word64
 -- type Width = Word64
@@ -161,24 +164,38 @@ itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
 
-spans :: Item (StartSet Word) b -> Value
-spans x = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
-    where
-        pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
+-- spans :: Item (StartSet Word) b -> Value
+-- spans x = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
+--     where
+--         pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
 
-instance ToJSON LayoutItem where
-    toJSON x = object [name .= spans x] -- , "children" .= (children $ _body x)]
-        where
-            name = sformat ("[" % stext % "]") (_name x)
-            children (LayoutBody lis) = Array $ V.fromList undefined
-            children (LayoutBodyBitmap lbb) = Array $ V.fromList undefined
+-- instance ToJSON LayoutItem where
+--     toJSON x = object [name .= spans x] -- , "children" .= (children $ _body x)]
+--         where
+--             name = sformat ("[" % stext % "]") (_name x)
+--             children (LayoutBody lis) = Array $ V.fromList undefined
+--             children (LayoutBodyBitmap lbb) = Array $ V.fromList undefined
+--
+-- instance ToJSON BitmapItem where
+--     toJSON x = object [name .= spans x, "children" .= children]
+--         where
+--             name = sformat ("<" % stext % ">") (_name x)
+--             children :: Value
+--             children = Array V.empty
 
-instance ToJSON BitmapItem where
-    toJSON x = object [name .= spans x, "children" .= children]
+instance Pretty LayoutBody where
+    pretty (LayoutBody lis) = PPD.braces $ PPD.cat $ fmap pretty lis
+    pretty (LayoutBodyBitmap _) = "{}"
+
+instance Pretty (StartSet Word) where
+    pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
         where
-            name = sformat ("<" % stext % ">") (_name x)
-            children :: Value
-            children = Array V.empty
+            posPretty (at, name) = pretty at <+> pretty name
+    pretty (StartSetPeriodic f n s) = pretty f <+> PPD.brackets (pretty n <+> "+" <> pretty s)
+    pretty (StartSet1 s) = pretty s
+
+instance Pretty LayoutItem where
+    pretty (Item s w n d b) = PPD.brackets (pretty w <> "@" <> pretty s) <+> pretty n <+> pretty d <+> pretty b
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
