@@ -314,10 +314,10 @@ bitmapBodyNextP :: BitmapBody -> Prsr BitmapBody
 bitmapBodyNextP (BitmapBody vs bms) =
     do
         v <- valueItemP
-        return $ BitmapBody (v : vs) bms
+        return $ BitmapBody (vs ++ [v]) bms
     <|> do
         bm <- bitmapItemP bms
-        return $ BitmapBody vs (bm : bms)
+        return $ BitmapBody vs (bms ++ [bm])
 
 bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = someFoldlM bitmapBodyFirstP bitmapBodyNextP
@@ -334,7 +334,7 @@ bitmapItemP elderSibs = (do
 
 -- FIXME: should be reversed
 layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
-layoutBodyXP lis = (: lis) <$> layoutItemP lis
+layoutBodyXP lis = (\ x -> lis ++ [x]) <$> layoutItemP lis
 
 layoutBodyP :: Prsr LayoutBody
 layoutBodyP  =  LayoutBodyBitmap <$> bitmapBodyP
