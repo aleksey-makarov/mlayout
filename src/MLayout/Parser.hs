@@ -207,7 +207,7 @@ instance Pretty (StartSet Word) where
     pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
         where
             posPretty (at, name) = pretty at <+> pretty name
-    pretty (StartSetPeriodic f n s) = pretty f <+> PPD.brackets (pretty n <+> "+" <> pretty s)
+    pretty (StartSetPeriodic f n s) = pretty f <> PPD.brackets (pretty n <+> "+" <> pretty s)
     pretty (StartSet1 s) = pretty s
 
 instance Pretty LayoutItem where
