@@ -87,12 +87,12 @@ startP = symbolic '@' *> (startSetP <|> startArrayP)
 locationP :: Maybe Word -> Prsr ParsedLocation
 locationP firstWord  =  mkInterval firstWord <$> (symbolic ':' *> wordP)
                     <|> (flip StartWidth $ firstWord) <$> startP
-        where
-            mkInterval :: Maybe Word -> Word -> ParsedLocation
-            mkInterval (Just x) y = StartWidth (StartSet1 $ Just a) (Just $ b - a + 1)
-                where
-                    (a, b) = if x > y then (y, x) else (x, y)
-            mkInterval Nothing y = UpTo y
+    where
+        mkInterval :: Maybe Word -> Word -> ParsedLocation
+        mkInterval (Just x) y = StartWidth (StartSet1 $ Just a) (Just $ b - a + 1)
+            where
+                (a, b) = if x > y then (y, x) else (x, y)
+        mkInterval Nothing y = UpTo y
 
 layoutLocationInnerP :: Prsr ParsedLocation
 layoutLocationInnerP = do
@@ -329,14 +329,16 @@ bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = someFoldlM bitmapBodyFirstP bitmapBodyNextP
 
 bitmapItemP :: [Item (StartSet Word) b] -> Prsr BitmapItem
-bitmapItemP elderSibs = (do
-    l <- bitmapLocationP
-    n <- nameP
-    d <- docP
-    b <- optional (braces bitmapBodyP)
-    let bw = maybe 0 (upperBoundItemList . _bitmaps) b
-    (s, w) <- resolve elderSibs bw l
-    return $ Item s w n d b) <?> "bitmap item"
+bitmapItemP elderSibs = bitmapItemP' <?> "bitmap item"
+    where
+        bitmapItemP' = do
+            l <- bitmapLocationP
+            n <- nameP
+            d <- docP
+            b <- optional (braces bitmapBodyP)
+            let bw = maybe 0 (upperBoundItemList . _bitmaps) b
+            (s, w) <- resolve elderSibs bw l
+            return $ Item s w n d b
 
 -- FIXME: should be reversed
 layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
@@ -347,14 +349,16 @@ layoutBodyP  =  LayoutBodyBitmap <$> bitmapBodyP
             <|> LayoutBody <$> someFoldlM (layoutBodyXP []) layoutBodyXP
 
 layoutItemP :: [Item (StartSet Word) b] -> Prsr LayoutItem
-layoutItemP elderSibs = (do
-    l <- layoutLocationP
-    n <- nameP
-    d <- docP
-    b <- optional (braces layoutBodyP)
-    let bw = maybe 0 upperBoundLayoutBody b
-    (s, w) <- resolve elderSibs bw l
-    return $ Item s w n d b) <?> "layout item"
+layoutItemP elderSibs = layoutItemP' <?> "layout item"
+    where
+        layoutItemP' = do
+            l <- layoutLocationP
+            n <- nameP
+            d <- docP
+            b <- optional (braces layoutBodyP)
+            let bw = maybe 0 upperBoundLayoutBody b
+            (s, w) <- resolve elderSibs bw l
+            return $ Item s w n d b
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype Prsr a = Prsr { runPrsr :: Parser a }
