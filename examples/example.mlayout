@@ -14,7 +14,8 @@
 
   # Subarea that does not appear at the output
   # bytes 8-17
-  [10@8] _ Docs for this hidden area
+  # FIXME: [10@8] _ Docs for this hidden area
+  [10@8] TMP_ Docs for this hidden area
 
   # one byte at offset 18
   [%8] B2 Docs for B2 {
