@@ -84,19 +84,25 @@ startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nam
 startP :: Prsr (StartSet (Maybe Word))
 startP = symbolic '@' *> (startSetP <|> startArrayP)
 
-locationP :: Prsr ParsedLocation
-locationP = do
-    firstWord <- optional wordP
-    (mkInterval firstWord <$> (symbolic ':' *> wordP))
-        <|> (flip StartWidth $ firstWord) <$> startP
-        <|> (return $ StartWidth (StartSet1 Nothing) firstWord)
+locationP :: Maybe Word -> Prsr ParsedLocation
+locationP firstWord  =  mkInterval firstWord <$> (symbolic ':' *> wordP)
+                    <|> (flip StartWidth $ firstWord) <$> startP
         where
-
             mkInterval :: Maybe Word -> Word -> ParsedLocation
             mkInterval (Just x) y = StartWidth (StartSet1 $ Just a) (Just $ b - a + 1)
                 where
                     (a, b) = if x > y then (y, x) else (x, y)
             mkInterval Nothing y = UpTo y
+
+layoutLocationInnerP :: Prsr ParsedLocation
+layoutLocationInnerP = do
+    firstWord <- optional wordP
+    locationP firstWord <|> (return $ StartWidth (StartSet1 Nothing) firstWord)
+
+bitmapLocationInnerP :: Prsr ParsedLocation
+bitmapLocationInnerP = do
+    firstWord <- optional wordP
+    locationP firstWord <|> (return $ StartWidth (StartSet1 firstWord) Nothing)
 
 locationWordP :: Prsr ParsedLocation
 locationWordP = do
@@ -111,10 +117,10 @@ locationWordP = do
                              <|> 8 <$ string "64"
 
 layoutLocationP :: Prsr ParsedLocation
-layoutLocationP = brackets (locationWordP <|> locationP) <?> "layout location"
+layoutLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
 
 bitmapLocationP :: Prsr ParsedLocation
-bitmapLocationP = angles locationP <?> "bitfield location"
+bitmapLocationP = angles bitmapLocationInnerP <?> "bitfield location"
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier)
