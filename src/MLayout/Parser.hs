@@ -18,6 +18,7 @@ import           Control.Applicative
 import           Control.Monad
 -- import           Data.Aeson
 import           Data.Foldable as F
+import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
@@ -29,12 +30,12 @@ import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
 import           Text.Parser.Token
+import           Text.Parser.Token.Highlight
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 import qualified Data.Text.Prettyprint.Doc as PPD
 import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
-
 -- type Addr = Word64
 -- type Width = Word64
 -- type Val = Word64
@@ -116,9 +117,7 @@ bitmapLocationP :: Prsr ParsedLocation
 bitmapLocationP = angles locationP <?> "bitfield location"
 
 nameP :: Prsr Text
-nameP  =  pack <$> (token $ some $ satisfyRange 'A' 'Z')
-      <|> "" <$ symbolic '_'
-      <?> "name of item"
+nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier)
 
 docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
@@ -184,7 +183,10 @@ itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
 --             children = Array V.empty
 
 prettyItem :: Pretty b => (Doc a -> Doc a) -> Item (StartSet Word) b -> Doc a
-prettyItem envelop (Item s w n d b) = envelop (pretty w <> "@" <> pretty s) <+> pretty n <+> dquotes (pretty d) <+> pretty b
+prettyItem envelop (Item s w n d b) = envelop (pretty w <> "@" <> pretty s)
+                                   <+> pretty n
+                                   <+> dquotes (pretty d)
+                                   <+> pretty b
 
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)

@@ -11,4 +11,7 @@
     =42 NAMEXXXXXX "doc"
   }
 }
-[5] NAMEXXXX "something"
+[] NAMEXXXX "something" {
+  [2] N1 "doc"
+  [2] N2 "doc"
+}
