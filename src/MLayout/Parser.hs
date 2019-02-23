@@ -183,9 +183,23 @@ itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
 --             children :: Value
 --             children = Array V.empty
 
+prettyItem :: Pretty b => (Doc a -> Doc a) -> Item (StartSet Word) b -> Doc a
+prettyItem envelop (Item s w n d b) = envelop (pretty w <> "@" <> pretty s) <+> pretty n <+> dquotes (pretty d) <+> pretty b
+
+instance Pretty ValueItem where
+    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
+
+instance Pretty BitmapItem where
+    pretty i = prettyItem PPD.angles i
+
+instance Pretty BitmapBody where
+    pretty (BitmapBody vs bms) = PPD.braces (line <> indent 4 (PPD.vsep l) <> line)
+        where
+            l = fmap pretty vs ++ fmap pretty bms
+
 instance Pretty LayoutBody where
-    pretty (LayoutBody lis) = PPD.braces $ PPD.cat $ fmap pretty lis
-    pretty (LayoutBodyBitmap _) = "{}"
+    pretty (LayoutBody lis) = PPD.braces (line <> indent 4 (PPD.vsep (fmap pretty lis)) <> line)
+    pretty (LayoutBodyBitmap bb) = pretty bb
 
 instance Pretty (StartSet Word) where
     pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
@@ -195,7 +209,7 @@ instance Pretty (StartSet Word) where
     pretty (StartSet1 s) = pretty s
 
 instance Pretty LayoutItem where
-    pretty (Item s w n d b) = PPD.brackets (pretty w <> "@" <> pretty s) <+> pretty n <+> pretty d <+> pretty b
+    pretty i = prettyItem PPD.brackets i
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
