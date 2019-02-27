@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import           Control.Foldl hiding (fold, mapM_)
+import           Control.Foldl hiding (fold)
 import           Prelude hiding (FilePath)
 import           MLayout.Parser
 import           Test.Tasty
@@ -12,19 +12,14 @@ import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 import           Turtle
 
-mapMaybe :: MonadPlus m => (a -> Maybe b) -> m a -> m b
-mapMaybe func ma = fmap func ma >>= \ case
-    Just b -> return b
-    Nothing -> mzero
-
-makeTestCase :: FilePath -> Maybe TestTree
+makeTestCase :: FilePath -> Shell TestTree
 makeTestCase p =
     if p `hasExtension` "mlayout"
-        then Just $ if (dropExtension p) `hasExtension` "err"
+        then return $ if (dropExtension p) `hasExtension` "err"
             -- FIXME: get one line description of error and pass it to assertFailure
             then mkTestCase (testName ++ " (E)") ps (assertFailure "should fail") (return ())
             else mkTestCase  testName            ps (return ())                   (assertFailure "should pass")
-        else Nothing
+        else mzero
     where
         testName = encodeString $ basename p
         ps = encodeString p
@@ -32,6 +27,7 @@ makeTestCase p =
 
 main :: IO ()
 main = do
-    tests <- testGroup "Tests" <$> fold (mapMaybe makeTestCase $ ls "test") list
-    examples <- testGroup "Examples" <$> fold (mapMaybe makeTestCase $ ls "examples") list
+    tests    <- testGroup "Tests"    <$> fold (ls "test"     >>= makeTestCase) list
+    examples <- testGroup "Examples" <$> fold (ls "examples" >>= makeTestCase) list
+
     defaultMain $ testGroup "Everyting" [tests, examples]
