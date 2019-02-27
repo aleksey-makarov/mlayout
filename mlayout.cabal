@@ -36,8 +36,11 @@ test-suite mlayout-test
     build-depends:       base >= 4.9 && < 5
                        , mlayout
                        , foldl
+                       , prettyprinter
+                       , ansi-wl-pprint
                        , trifecta >= 2
                        , tasty >= 1.1.0.3
+                       , tasty-golden
                        , tasty-hunit >= 0.10.0.1
                        , turtle >= 1.5.10
     ghc-options:         -Wall -threaded
