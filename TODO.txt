@@ -1,0 +1,5 @@
+- write tests
+- eliminate Maybe in Item
+- eliminate parameter from StartSet, rework ParsedLocation
+- JSON
+- JSON -> formatted
