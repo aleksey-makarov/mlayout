@@ -141,7 +141,7 @@ data Item s b
         ,   _width :: Word
         ,   _name  :: Text
         ,   _doc   :: Text
-        ,   _body  :: Maybe b
+        ,   _body  :: b
         }
     deriving Show
 
@@ -188,17 +188,27 @@ itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
 --             children :: Value
 --             children = Array V.empty
 
-prettyItem :: Pretty b => (Doc a -> Doc a) -> Item (StartSet Word) b -> Doc a
-prettyItem envelop (Item s w n d b) = envelop (pretty w <> "@" <> pretty s)
+
+bitmapBodyIsEmpty :: BitmapBody -> Bool
+bitmapBodyIsEmpty (BitmapBody [] []) = True
+bitmapBodyIsEmpty _ = False
+
+layoutBodyIsEmpty :: LayoutBody -> Bool
+layoutBodyIsEmpty (LayoutBody []) = True
+layoutBodyIsEmpty (LayoutBodyBitmap x) = bitmapBodyIsEmpty x
+layoutBodyIsEmpty _ = False
+
+prettyItem :: Pretty b => (Doc a -> Doc a) -> (b -> Bool) -> Item (StartSet Word) b -> Doc a
+prettyItem envelop bodyIsEmpty (Item s w n d b) = envelop (pretty w <> "@" <> pretty s)
                                    <+> pretty n
                                    <+> dquotes (pretty d)
-                                   <+> pretty b
+                                   <+> if bodyIsEmpty b then mempty else pretty b
 
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
 instance Pretty BitmapItem where
-    pretty i = prettyItem PPD.angles i
+    pretty i = prettyItem PPD.angles bitmapBodyIsEmpty i
 
 instance Pretty BitmapBody where
     pretty (BitmapBody vs bms) = PPD.braces (line <> indent 4 (PPD.vsep l) <> line)
@@ -217,7 +227,7 @@ instance Pretty (StartSet Word) where
     pretty (StartSet1 s) = pretty s
 
 instance Pretty LayoutItem where
-    pretty i = prettyItem PPD.brackets i
+    pretty i = prettyItem PPD.brackets layoutBodyIsEmpty i
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
@@ -335,9 +345,8 @@ bitmapItemP elderSibs = bitmapItemP' <?> "bitmap item"
             l <- bitmapLocationP
             n <- nameP
             d <- docP
-            b <- optional (braces bitmapBodyP)
-            let bw = maybe 0 (upperBoundItemList . _bitmaps) b
-            (s, w) <- resolve elderSibs bw l
+            b <- maybe (BitmapBody [] []) id <$> optional (braces bitmapBodyP)
+            (s, w) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
             return $ Item s w n d b
 
 -- FIXME: should be reversed
@@ -355,9 +364,8 @@ layoutItemP elderSibs = layoutItemP' <?> "layout item"
             l <- layoutLocationP
             n <- nameP
             d <- docP
-            b <- optional (braces layoutBodyP)
-            let bw = maybe 0 upperBoundLayoutBody b
-            (s, w) <- resolve elderSibs bw l
+            b <- maybe (LayoutBody []) id <$> optional (braces layoutBodyP)
+            (s, w) <- resolve elderSibs (upperBoundLayoutBody b) l
             return $ Item s w n d b
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
