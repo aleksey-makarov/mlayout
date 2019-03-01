@@ -40,13 +40,13 @@ import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 -- type Width = Word64
 -- type Val = Word64
 
-data StartSet s
+data StartSet' s
     = StartSet
         { _startPositions :: NonEmpty (s, Text)
         }
     | StartSetPeriodic
         { _positionFirst :: s
-        , _n             :: Word -- >= 2
+        , _n             :: Word -- TODO: >= 2
         , _step          :: s
         }
     | StartSet1
@@ -54,12 +54,14 @@ data StartSet s
         }
     deriving Show
 
+type StartSet = StartSet' Word
+type ParsedStartSet = StartSet' (Maybe Word)
+
+-- TODO: [a:]
 data ParsedLocation
-    = UpTo
-        Word -- this is maximum, not upper bound
-    | StartWidth
-        (StartSet (Maybe Word))
-        (Maybe Word)
+    = FromTo (Maybe Word) Word -- this is maximum, not upper bound
+    | Word Word ParsedStartSet -- width, at
+    | WidthStart (Maybe Word) ParsedStartSet
     deriving Show
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
@@ -72,49 +74,40 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-startArrayP :: Prsr (StartSet (Maybe Word))
+startArrayP :: Prsr ParsedStartSet
 startArrayP = do
     start <- optional wordP
     (brackets $ StartSetPeriodic start <$> wordP <*> optional ((symbolic '+') *> wordP)) -- FIXME: n should be >= 2
         <|> (return $ StartSet1 start)
 
-startSetP :: Prsr (StartSet (Maybe Word))
+startSetP :: Prsr ParsedStartSet
 startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
-startP :: Prsr (StartSet (Maybe Word))
+startP :: Prsr ParsedStartSet
 startP = symbolic '@' *> (startSetP <|> startArrayP)
 
 locationP :: Maybe Word -> Prsr ParsedLocation
-locationP firstWord  =  mkInterval firstWord <$> (symbolic ':' *> wordP)
-                    <|> (flip StartWidth $ firstWord) <$> startP
-    where
-        mkInterval :: Maybe Word -> Word -> ParsedLocation
-        mkInterval (Just x) y = StartWidth (StartSet1 $ Just a) (Just $ b - a + 1)
-            where
-                (a, b) = if x > y then (y, x) else (x, y)
-        mkInterval Nothing y = UpTo y
+locationP firstWord  =  FromTo firstWord <$> (symbolic ':' *> wordP)
+                    <|> WidthStart firstWord <$> startP
 
 layoutLocationInnerP :: Prsr ParsedLocation
 layoutLocationInnerP = do
     firstWord <- optional wordP
-    locationP firstWord <|> (return $ StartWidth (StartSet1 Nothing) firstWord)
+    locationP firstWord <|> (return $ WidthStart firstWord (StartSet1 Nothing))
 
 bitmapLocationInnerP :: Prsr ParsedLocation
 bitmapLocationInnerP = do
     firstWord <- optional wordP
-    locationP firstWord <|> (return $ StartWidth (StartSet1 firstWord) Nothing)
+    locationP firstWord <|> (return $ WidthStart Nothing (StartSet1 firstWord))
 
 locationWordP :: Prsr ParsedLocation
-locationWordP = do
-    w <- wordWidthP
-    s <- option (StartSet1 Nothing) startP
-    return $ StartWidth s (Just w)
-        where
-            wordWidthP = token (char '%' *> wordWidthDigitsP)
-            wordWidthDigitsP  =  1 <$ string "8"
-                             <|> 2 <$ string "16"
-                             <|> 4 <$ string "32"
-                             <|> 8 <$ string "64"
+locationWordP = Word <$> wordWidthP <*> option (StartSet1 Nothing) startP
+    where
+        wordWidthP = token (char '%' *> wordWidthDigitsP)
+        wordWidthDigitsP  =  1 <$ string "8"
+                         <|> 2 <$ string "16"
+                         <|> 4 <$ string "32"
+                         <|> 8 <$ string "64"
 
 layoutLocationP :: Prsr ParsedLocation
 layoutLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
@@ -135,10 +128,10 @@ data ValueItem = ValueItem Integer Text Text deriving Show
 valueItemP :: Prsr ValueItem
 valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
-data Item s b
+data Item b
     = Item
-        {   _start :: s
-        ,   _width :: Word
+        {   _width :: Word
+        ,   _start :: StartSet
         ,   _name  :: Text
         ,   _doc   :: Text
         ,   _body  :: b
@@ -151,21 +144,21 @@ data BitmapBody
         ,   _bitmaps :: [BitmapItem]
         }
     deriving Show
-type BitmapItem = Item (StartSet Word) BitmapBody
+type BitmapItem = Item BitmapBody
 
 data LayoutBody
     = LayoutBody [LayoutItem]
     | LayoutBodyBitmap BitmapBody
     deriving Show
-type LayoutItem = Item (StartSet Word) LayoutBody
+type LayoutItem = Item LayoutBody
 
 -- FIXME: use this for itemToList
-itemToList :: Item (StartSet Word) b -> [(Word, Word)]
-itemToList (Item (StartSet1 s) w _ _ _) = [(s, s + w)]
-itemToList (Item (StartSet ss) w _ _ _) = LNE.toList $ fmap f ss
+itemToList :: Item b -> [(Word, Word)]
+itemToList (Item w (StartSet1 s) _ _ _) = [(s, s + w)]
+itemToList (Item w (StartSet ss) _ _ _) = LNE.toList $ fmap f ss
     where
         f (s, _) = (s, s + w)
-itemToList (Item (StartSetPeriodic first n step) w _ _ _) = fmap f [0 .. n - 1]
+itemToList (Item w (StartSetPeriodic first n step) _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
 
@@ -198,8 +191,8 @@ layoutBodyIsEmpty (LayoutBody []) = True
 layoutBodyIsEmpty (LayoutBodyBitmap x) = bitmapBodyIsEmpty x
 layoutBodyIsEmpty _ = False
 
-prettyItem :: Pretty b => (Doc a -> Doc a) -> (b -> Bool) -> Item (StartSet Word) b -> Doc a
-prettyItem envelop bodyIsEmpty (Item s w n d b) = envelop (pretty w <> "@" <> pretty s)
+prettyItem :: Pretty b => (Doc a -> Doc a) -> (b -> Bool) -> Item b -> Doc a
+prettyItem envelop bodyIsEmpty (Item w s n d b) = envelop (pretty w <> "@" <> pretty s)
                                    <+> pretty n
                                    <+> dquotes (pretty d)
                                    <+> if bodyIsEmpty b then mempty else pretty b
@@ -219,7 +212,7 @@ instance Pretty LayoutBody where
     pretty (LayoutBody lis) = PPD.braces (line <> indent 4 (PPD.vsep (fmap pretty lis)) <> line)
     pretty (LayoutBodyBitmap bb) = pretty bb
 
-instance Pretty (StartSet Word) where
+instance Pretty StartSet where
     pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
         where
             posPretty (at, name) = pretty at <+> pretty name
@@ -232,35 +225,85 @@ instance Pretty LayoutItem where
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
 
-maxStartSet :: StartSet Word -> Word
+maxStartSet :: StartSet -> Word
 maxStartSet (StartSet ss)            = maximum $ LNE.map fst ss
 maxStartSet (StartSetPeriodic f n s) = f + (n - 1) * s
 maxStartSet (StartSet1 s)            = s
 
-upperBoundItem :: Item (StartSet Word) b -> Word
-upperBoundItem (Item s w _ _ _) = w + maxStartSet s
+upperBoundItem :: Item b -> Word
+upperBoundItem (Item w s _ _ _) = w + maxStartSet s
 
 upperBoundLayoutBody :: LayoutBody -> Word
 upperBoundLayoutBody (LayoutBody lb) = upperBoundItemList lb
 upperBoundLayoutBody (LayoutBodyBitmap (BitmapBody _ bms)) = (upperBoundItemList bms) `div` 8
 
-upperBoundItemList :: [Item (StartSet Word) b] -> Word
+upperBoundItemList :: [Item b] -> Word
 upperBoundItemList = P.foldl f 0
     where
         f x = max x . upperBoundItem
 
-resolve :: [Item (StartSet Word) b] -> Word -> ParsedLocation -> Prsr (StartSet Word, Word)
-resolve elderSibs childrenWidth (UpTo maxIndex) = do
-    when (widthOfThisItem < childrenWidth) $ throw "width is too small"
-    return (StartSet1 upperBoundOfSibs, widthOfThisItem)
+resolve :: [Item b] -> Word -> ParsedLocation -> Prsr (Word, StartSet)
+resolve elderSibs childrenWidth = resolve'
     where
+        upperBoundOfSibs :: Word
         upperBoundOfSibs = upperBoundItemList elderSibs
-        widthOfThisItem = maxIndex + 1 - upperBoundOfSibs
-resolve elderSibs childrenWidth (StartWidth ss (Nothing)) =
-    (, max 1 childrenWidth) <$> resolveParsedLocation elderSibs ss childrenWidth
-resolve elderSibs childrenWidth (StartWidth ss (Just widthOfThisItem))  = do
-    when (widthOfThisItem < childrenWidth) $ throw ("width is too small @2, widthOfThisItem: " % int % "; childrenWidth: " % int) widthOfThisItem childrenWidth
-    (, widthOfThisItem) <$> resolveParsedLocation elderSibs ss widthOfThisItem
+
+        resolve' :: ParsedLocation -> Prsr (Word, StartSet)
+        resolve' (FromTo (Just x) y) = (w, ) <$> resolveW w (StartSet1 $ Just a)
+            where
+                (a, b) = if x > y then (y, x) else (x, y)
+                w = b - a + 1
+        resolve' (FromTo Nothing to) = do
+            when (w < childrenWidth) $ throw "width is too small"
+            return (w, StartSet1 upperBoundOfSibs)
+            where
+                w = to + 1 - upperBoundOfSibs
+        resolve' (Word w ss) = (w, ) <$> resolveW w ss
+        resolve' (WidthStart (Nothing) ss) = (max 1 childrenWidth, ) <$> resolveW childrenWidth ss
+        resolve' (WidthStart (Just w) ss) = do
+            when (w < childrenWidth) $ throw ("width is too small @2, w: " % int % "; childrenWidth: " % int) w childrenWidth
+            (w, ) <$> resolveW w ss
+
+        resolveW :: Word -> ParsedStartSet -> Prsr StartSet
+        resolveW widthOfThisItem unresolvedStart = maybe (throw "intersects") return (resolve'' unresolvedStart)
+            where
+                resolve'' :: ParsedStartSet -> Maybe StartSet
+                resolve'' (StartSet1 s)               = StartSet1 . snd <$> resolvePosition upperBoundOfSibs s
+                resolve'' (StartSet ss)               = StartSet <$> resolveStartSet ss
+                resolve'' (StartSetPeriodic s n step) = StartSetPeriodic <$> resolvePeriodic <*> Just n <*> Just step'
+                    where
+                        step' = maybe widthOfThisItem id step
+                        -- FIXME: check that *all* intervals do not intersect
+                        resolvePeriodic = snd <$> resolvePosition upperBoundOfSibs s
+
+                -- | Resolves the start of the layout
+                resolvePosition :: Word               -- ^ First available position
+                                -> Maybe Word         -- ^ Where the layout should start, if specified
+                                -> Maybe (Word, Word) -- ^ (The new first available position, the resolved start)
+                resolvePosition firstAvailable Nothing   = Just (firstAvailable + widthOfThisItem, firstAvailable)
+                resolvePosition firstAvailable (Just s) = if s < firstAvailable
+                    then if intersectsItems (s, s + widthOfThisItem) elderSibs
+                        then Nothing
+                        else Just (firstAvailable, s)
+                    else Just (s + widthOfThisItem, s)
+
+                resolveStartSet :: NonEmpty (Maybe Word, Text) -> Maybe (NonEmpty (Word, Text))
+                -- FIXME: absolutely incorrect: wrong order
+                resolveStartSet ((s, n) :| sns) = do
+                    (at', s') <- resolvePosition upperBoundOfSibs s
+                    ((s', n) :| ) . snd <$> F.foldr f (Just (at', [])) sns
+
+                f :: (Maybe Word, Text) -> Maybe (Word, [(Word, Text)]) -> Maybe (Word, [(Word, Text)])
+                f (s, n) state = do
+                    (at, sns) <- state
+                    (at', s') <- resolvePosition at s
+                    checkPrev (P.map fst sns) s'
+                    return (at', (s', n) : sns)
+
+                checkPrev :: [Word] -> Word -> Maybe ()
+                checkPrev sns s = if intersectsList (s, s + widthOfThisItem) (P.map (\ x -> (x, x + widthOfThisItem)) sns)
+                    then Nothing
+                    else Just ()
 
 -- FIXME: not only for Word
 intersectPair :: (Word, Word) -> (Word, Word) -> Bool
@@ -269,52 +312,8 @@ intersectPair (l, r) (l', r') = if l < l' then l' < r else l < r'
 intersectsList :: (Word, Word) -> [(Word, Word)] -> Bool
 intersectsList p = F.any (intersectPair p)
 
-intersectsItems :: (Word, Word) -> [Item (StartSet Word) b] -> Bool
+intersectsItems :: (Word, Word) -> [Item b] -> Bool
 intersectsItems p = intersectsList p . F.concat . fmap itemToList
-
-resolveParsedLocation :: [Item (StartSet Word) b] -> StartSet (Maybe Word) -> Word -> Prsr (StartSet Word)
-resolveParsedLocation elderSibs unresolvedStart widthOfThisItem = maybe (throw "intersects") return (resolve' unresolvedStart)
-    where
-        resolve' :: StartSet (Maybe Word) -> Maybe (StartSet Word)
-        resolve' (StartSet1 s)               = StartSet1 . snd <$> resolvePosition upperBoundOfSibs s
-        resolve' (StartSet ss)               = StartSet <$> resolveStartSet ss
-        resolve' (StartSetPeriodic s n step) = StartSetPeriodic <$> resolvePeriodic <*> Just n <*> Just step'
-            where
-                step' = maybe widthOfThisItem id step
-                -- FIXME: check that *all* intervals do not intersect
-                resolvePeriodic = snd <$> resolvePosition upperBoundOfSibs s
-
-        upperBoundOfSibs :: Word
-        upperBoundOfSibs = upperBoundItemList elderSibs
-
-        -- | Resolves the start of the layout
-        resolvePosition :: Word               -- ^ First available position
-                        -> Maybe Word         -- ^ Where the layout should start, if specified
-                        -> Maybe (Word, Word) -- ^ (The new first available position, the resolved start)
-        resolvePosition firstAvailable Nothing   = Just (firstAvailable + widthOfThisItem, firstAvailable)
-        resolvePosition firstAvailable (Just s) = if s < firstAvailable
-            then if intersectsItems (s, s + widthOfThisItem) elderSibs
-                then Nothing
-                else Just (firstAvailable, s)
-            else Just (s + widthOfThisItem, s)
-
-        resolveStartSet :: NonEmpty (Maybe Word, Text) -> Maybe (NonEmpty (Word, Text))
-        -- FIXME: absolutely incorrect: wrong order
-        resolveStartSet ((s, n) :| sns) = do
-            (at', s') <- resolvePosition upperBoundOfSibs s
-            ((s', n) :| ) . snd <$> F.foldr f (Just (at', [])) sns
-
-        f :: (Maybe Word, Text) -> Maybe (Word, [(Word, Text)]) -> Maybe (Word, [(Word, Text)])
-        f (s, n) state = do
-            (at, sns) <- state
-            (at', s') <- resolvePosition at s
-            checkPrev (P.map fst sns) s'
-            return (at', (s', n) : sns)
-
-        checkPrev :: [Word] -> Word -> Maybe ()
-        checkPrev sns s = if intersectsList (s, s + widthOfThisItem) (P.map (\ x -> (x, x + widthOfThisItem)) sns)
-            then Nothing
-            else Just ()
 
 someFoldlM :: (Alternative m, Monad m) => m b -> (b -> m b) -> m b
 someFoldlM first next = first >>= f
@@ -338,7 +337,7 @@ bitmapBodyNextP (BitmapBody vs bms) =
 bitmapBodyP :: Prsr BitmapBody
 bitmapBodyP = someFoldlM bitmapBodyFirstP bitmapBodyNextP
 
-bitmapItemP :: [Item (StartSet Word) b] -> Prsr BitmapItem
+bitmapItemP :: [Item b] -> Prsr BitmapItem
 bitmapItemP elderSibs = bitmapItemP' <?> "bitmap item"
     where
         bitmapItemP' = do
@@ -346,8 +345,8 @@ bitmapItemP elderSibs = bitmapItemP' <?> "bitmap item"
             n <- nameP
             d <- docP
             b <- maybe (BitmapBody [] []) id <$> optional (braces bitmapBodyP)
-            (s, w) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
-            return $ Item s w n d b
+            (w, s) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
+            return $ Item w s n d b
 
 -- FIXME: should be reversed
 layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
@@ -357,7 +356,7 @@ layoutBodyP :: Prsr LayoutBody
 layoutBodyP  =  LayoutBodyBitmap <$> bitmapBodyP
             <|> LayoutBody <$> someFoldlM (layoutBodyXP []) layoutBodyXP
 
-layoutItemP :: [Item (StartSet Word) b] -> Prsr LayoutItem
+layoutItemP :: [Item b] -> Prsr LayoutItem
 layoutItemP elderSibs = layoutItemP' <?> "layout item"
     where
         layoutItemP' = do
@@ -365,8 +364,8 @@ layoutItemP elderSibs = layoutItemP' <?> "layout item"
             n <- nameP
             d <- docP
             b <- maybe (LayoutBody []) id <$> optional (braces layoutBodyP)
-            (s, w) <- resolve elderSibs (upperBoundLayoutBody b) l
-            return $ Item s w n d b
+            (w, s) <- resolve elderSibs (upperBoundLayoutBody b) l
+            return $ Item w s n d b
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype Prsr a = Prsr { runPrsr :: Parser a }
