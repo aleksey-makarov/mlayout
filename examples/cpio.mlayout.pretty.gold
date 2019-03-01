@@ -1,0 +1,30 @@
+[26@0] CPIO "Cpio header " {
+    [2@0] MAGIC "The magic value " {
+        =70707 SAME_ENDIANNESS "Same endianness"
+        =143561 OTHER_ENDIANNESS "Opposite endianness"
+    }
+    [2@2] DEV "The device number from the disk" 
+    [2@4] INO "The inode number from the disk" 
+    [2@6] MODE "Regular permissions and the file type " {
+        <4@12> FILETYPE "File type bits " {
+            =14 SOCKET "Socket"
+            =12 SYMBOLIC_LINK "Symbolic link"
+            =10 REGULAR_FILE "Regular file"
+            =6 BLOCK_DEVICE "Block special device"
+            =4 DIRECTORY "Directory"
+            =2 CHARACTER_DEVICE "Character special device"
+            =1 PIPE "Named pipe or FIFO"
+        }
+        <1@11> SUID "SUID bit" 
+        <1@10> SGID "SGID bit" 
+        <1@9> STICKY "Sticky bit" 
+        <9@0> PERMISSIONS "Posix permissions" 
+    }
+    [2@8] UID "The numeric user id of the owner" 
+    [2@10] GID "The numeric group id of the owner" 
+    [2@12] NLINK "The number of links to this file" 
+    [2@14] RDEV "The associated device number" 
+    [4@16] MTIME "The modification time of the file" 
+    [2@20] NAMESIZE "The number of bytes in the pathname that follows the header" 
+    [4@22] FILESIZE "The size of the file" 
+}

@@ -1,0 +1,44 @@
+[80@0] A "%be Docs for A " {
+    [2@0] B1 "Docs for B1 " {
+        [2@0] ABC1 "[%32@4] ABC2" 
+    }
+    [10@8] TMP_ "Docs for this hidden area" 
+    [1@18] B2 "Docs for B2 " {
+        =1 V1 "Docs for V1"
+        =2 V2 "Docs for V2"
+        =3 V3 "Docs for V3"
+        <2@0> C1 "Docs for C1" 
+        <2@2> C2 "Docs for C2" 
+        <1@4> C3 "Docs for C3 " {
+            =1 ENABLE "Docs for ENABLE"
+        }
+        <3@5> C4 "Docs for C4 " {
+            <1@0> D1 "Docs for D1" 
+            <1@1> D2 "Docs for D2" 
+        }
+    }
+    [4@19] B3 "Docs for B3 " {
+        <2@0> E1 "Docs for E1     # Two bits starting at 0" 
+        <2@2> E2 "Docs for E2     # Two bits starting at the next free location" 
+        <1@4> E3 "Docs for E3     # 4th bit" 
+        <3@5> E4 "Docs for E4     # Bits 5..7" 
+        <3@8> E5 "Docs for E5     # Bits 8..10" 
+        <1@11> E6 "Docs for E6     # Bit 11 (inferred)" 
+        <6@12> E7 "Docs for E7     # Bits 12..17 (inferred)" {
+            <4@0> EE1 "Docs for EE1" 
+            <2@4> EE2 "Docs for EE2" 
+        }
+        <4@{18 A, 26 B, 22 C}> E8 "" {
+            <4@0> X "Docs for X" 
+        }
+    }
+    [4@68] B4 "Docs for B4 " {
+        <4@{0 D, 8 E, 4 F}> E1 "Docs for E1" 
+        <2@{14 G, 17 H, 19 I}> E2 "Docs for E2" 
+        <1@{21 J, 25 K, 25 L}> E3 "Docs for E3" 
+    }
+    [8@72] B4 "Docs for B4 " {
+        <2@2[3 +4]> E1 "Docs for E1" 
+        <1@12[4 +0]> E2 "Docs for E2" 
+    }
+}
