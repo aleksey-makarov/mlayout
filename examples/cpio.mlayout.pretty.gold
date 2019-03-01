@@ -1,12 +1,12 @@
-[26@0] CPIO "Cpio header " {
-    [2@0] MAGIC "The magic value " {
+[26@0] CPIO "Cpio header" {
+    [2@0] MAGIC "The magic value" {
         =70707 SAME_ENDIANNESS "Same endianness"
         =143561 OTHER_ENDIANNESS "Opposite endianness"
     }
     [2@2] DEV "The device number from the disk" 
     [2@4] INO "The inode number from the disk" 
-    [2@6] MODE "Regular permissions and the file type " {
-        <4@12> FILETYPE "File type bits " {
+    [2@6] MODE "Regular permissions and the file type" {
+        <4@12> FILETYPE "File type bits" {
             =14 SOCKET "Socket"
             =12 SYMBOLIC_LINK "Symbolic link"
             =10 REGULAR_FILE "Regular file"

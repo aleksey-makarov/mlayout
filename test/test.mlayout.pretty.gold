@@ -1,7 +1,7 @@
 [1@0] NAME "doc" 
 [2@0] NAMEX "doc number two" 
 [4@0] NAMEXX "doc number three" {
-    [4@0] NAMEXXX "doc number four " {
+    [4@0] NAMEXXX "doc number four" {
         =42 NAMEXXXXXX "doc"
         <1@6> NAMEXXXXX "doc" 
     }

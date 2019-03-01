@@ -128,7 +128,7 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
     where
-        untilEOLOrBrace = pack <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n'))
+        untilEOLOrBrace = (strip . pack) <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n' && c /= '#'))
 
 data ValueItem = ValueItem Integer Text Text deriving Show
 
