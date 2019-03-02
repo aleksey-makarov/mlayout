@@ -91,6 +91,6 @@ makeTestCase path =
 main :: IO ()
 main = do
     tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase) list
-    examples <- (testGroup "Examples" . concat) <$> fold (ls "examples" >>= makeTestCase) list
+    examples <- (testGroup "MLayout"  . concat) <$> fold (ls "mlayout"  >>= makeTestCase) list
 
     defaultMain $ testGroup "Everyting" [tests, examples]
