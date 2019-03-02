@@ -4,6 +4,9 @@
 module Main (main) where
 
 import           Control.Foldl hiding (fold, mapM_)
+import           Data.Aeson
+import           Data.Aeson.Encode.Pretty
+import qualified Data.ByteString.Lazy as BL
 import           Data.Text.Prettyprint.Doc hiding (list)
 import           Data.Text.Prettyprint.Doc.Render.Text
 import           Prelude hiding (FilePath)
@@ -35,46 +38,59 @@ rmIfExists p = do
     b <- testfile p
     when b $ rm p
 
-makeTestCase :: FilePath -> Shell TestTree
+makeTestCase :: FilePath -> Shell [TestTree]
 makeTestCase path =
     if path `hasExtension` "mlayout"
         then do
-          rmIfExists prettyPath
-          rmIfExists errPath
-          return $ if (dropExtension path) `hasExtension` "err"
-            then mkErr
-            else mkGoldPretty
+            rmIfExists prettyPath
+            rmIfExists prettyErrPath
+            rmIfExists jsonPath
+            rmIfExists jsonErrPath
+            return $ if (dropExtension path) `hasExtension` "err"
+                then [mkErr]
+                else [mkGoldPretty, mkGoldJSON]
         else mzero
     where
-        pathString = encodeString path
 
+        testErrorName  = (encodeString $ basename path) ++ " (error)"
         testPrettyName = (encodeString $ basename path) ++ " (pretty)"
-        testErrorName = (encodeString $ basename path) ++ " (error)"
+        testJSONName   = (encodeString $ basename path) ++ " (json)"
 
-        prettyPath = path <.> "pretty"
-        prettyPathString = encodeString prettyPath
-        prettyGoldPathString = encodeString $ path <.> "pretty" <.> "gold"
-        errPath = path <.> "err"
-        errPathString = encodeString $ errPath
+        prettyPath           = path <.> "pretty"
+        prettyErrPath        = prettyPath <.> "err"
+        prettyGoldPath       = prettyPath <.> "gold"
 
-        mkOutOk :: Pretty d => [d] -> IO ()
-        mkOutOk doc = putDocFile prettyPathString $ vcat $ fmap pretty doc
+        jsonPath             = path <.> "json"
+        jsonErrPath          = jsonPath <.> "err"
+        jsonGoldPath         = jsonPath <.> "gold"
 
-        mkOutPretty :: IO ()
-        mkOutPretty = parseFromFileEx parser pathString >>= foldResult (putErrInfoFile errPathString) mkOutOk
+        mkPrettyOk :: Pretty d => [d] -> IO ()
+        mkPrettyOk doc = putDocFile (encodeString prettyPath) $ vcat $ fmap pretty doc
+
+        mkJSONOk :: ToJSON d => [d] -> IO ()
+        mkJSONOk doc = BL.writeFile (encodeString jsonPath) $ encodePretty $ toJSONList doc
+
+        mkPretty :: IO ()
+        mkPretty = parseFromFileEx parser (encodeString path) >>= foldResult (putErrInfoFile (encodeString prettyErrPath)) mkPrettyOk
+
+        mkJSON :: IO ()
+        mkJSON = parseFromFileEx parser (encodeString path) >>= foldResult (putErrInfoFile (encodeString jsonErrPath)) mkJSONOk
 
         mkGoldPretty :: TestTree
-        mkGoldPretty = goldenVsFile testPrettyName prettyGoldPathString prettyPathString mkOutPretty
+        mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
+
+        mkGoldJSON :: TestTree
+        mkGoldJSON = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
 
         mkErr :: TestTree
         mkErr = testCase testErrorName $ do
-            mkOutPretty
-            b <- testfile errPath
+            mkPretty
+            b <- testfile prettyErrPath
             unless b $ assertFailure "should fail"
 
 main :: IO ()
 main = do
-    tests    <- testGroup "Tests"    <$> fold (ls "test"     >>= makeTestCase) list
-    examples <- testGroup "Examples" <$> fold (ls "examples" >>= makeTestCase) list
+    tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase) list
+    examples <- (testGroup "Examples" . concat) <$> fold (ls "examples" >>= makeTestCase) list
 
     defaultMain $ testGroup "Everyting" [tests, examples]

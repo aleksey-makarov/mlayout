@@ -34,6 +34,9 @@ test-suite mlayout-test
     type:                exitcode-stdio-1.0
     main-is:             Main.hs
     build-depends:       base >= 4.9 && < 5
+                       , aeson
+                       , aeson-pretty
+                       , bytestring
                        , mlayout
                        , foldl
                        , prettyprinter
@@ -46,20 +49,18 @@ test-suite mlayout-test
     ghc-options:         -Wall -threaded
     default-language:    Haskell2010
 
-executable mlayout-test1
-    hs-source-dirs:      test
-    main-is:             Main1.hs
-    build-depends:       base >= 4.9 && < 5
-                       , bytestring
-                       , mlayout
-                       , foldl
-                       , prettyprinter
-                       , trifecta >= 2
-                       , turtle >= 1.5.10
-    ghc-options:         -Wall -threaded
-    default-language:    Haskell2010
-
-
+-- executable mlayout-test1
+--     hs-source-dirs:      test
+--     main-is:             Main1.hs
+--     build-depends:       base >= 4.9 && < 5
+--                        , bytestring
+--                        , mlayout
+--                        , foldl
+--                        , prettyprinter
+--                        , trifecta >= 2
+--                        , turtle >= 1.5.10
+--     ghc-options:         -Wall -threaded
+--     default-language:    Haskell2010
 
 source-repository head
     type:                git

@@ -16,15 +16,13 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
--- import           Data.Aeson
+import           Data.Aeson
 import           Data.Foldable as F
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
--- import           Data.Vector as V (fromList, empty)
--- import           Formatting (Format, runFormat, int, stext, (%), sformat)
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
@@ -162,25 +160,44 @@ itemToList (Item w (StartSetPeriodic first n step) _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
 
--- spans :: Item (StartSet Word) b -> Value
--- spans x = Array $ V.fromList $ fmap (String . pairToSpan) (itemToList x)
---     where
---         pairToSpan (a, b) = if b == a + 1 then sformat int a else sformat (int % ":" % int) a (b - 1)
+jsonItem :: ToJSON b => Item b -> Value
+jsonItem (Item w s n d b) = object [ "width"     .= w
+                                   , "start"     .= s
+                                   , "name"      .= n
+                                   , "docstring" .= d
+                                   , "children"  .= b
+                                   ]
 
--- instance ToJSON LayoutItem where
---     toJSON x = object [name .= spans x] -- , "children" .= (children $ _body x)]
---         where
---             name = sformat ("[" % stext % "]") (_name x)
---             children (LayoutBody lis) = Array $ V.fromList undefined
---             children (LayoutBodyBitmap lbb) = Array $ V.fromList undefined
---
--- instance ToJSON BitmapItem where
---     toJSON x = object [name .= spans x, "children" .= children]
---         where
---             name = sformat ("<" % stext % ">") (_name x)
---             children :: Value
---             children = Array V.empty
+instance ToJSON BitmapBody where
+    toJSON (BitmapBody valuesList bitmapItemList) = toJSONList $ fmap toJSON valuesList ++ fmap toJSON bitmapItemList
 
+instance ToJSON StartSet where
+    toJSON (StartSet positionsList) = toJSONList $ LNE.toList $ fmap positionToJSON positionsList
+        where
+            positionToJSON (w, n) = object [ "width" .= w
+                                           , "name"  .= n
+                                           ]
+    toJSON (StartSetPeriodic start n step) = object [ "start" .= start
+                                                    , "n"     .= n
+                                                    , "step"  .= step
+                                                    ]
+    toJSON (StartSet1 start) = toJSON start
+
+instance ToJSON BitmapItem where
+    toJSON = jsonItem
+
+instance ToJSON ValueItem where
+    toJSON (ValueItem v n d) = object [ "value"     .= v
+                                      , "name"      .= n
+                                      , "docstring" .= d
+                                      ]
+
+instance ToJSON LayoutBody where
+    toJSON (LayoutBody layoutItemList) = toJSONList layoutItemList
+    toJSON (LayoutBodyBitmap bitmapBody) = toJSON bitmapBody
+
+instance ToJSON LayoutItem where
+    toJSON = jsonItem
 
 bitmapBodyIsEmpty :: BitmapBody -> Bool
 bitmapBodyIsEmpty (BitmapBody [] []) = True
@@ -191,7 +208,7 @@ layoutBodyIsEmpty (LayoutBody []) = True
 layoutBodyIsEmpty (LayoutBodyBitmap x) = bitmapBodyIsEmpty x
 layoutBodyIsEmpty _ = False
 
-prettyItem :: Pretty b => (Doc a -> Doc a) -> (b -> Bool) -> Item b -> Doc a
+prettyItem :: Pretty b => (Doc ann -> Doc ann) -> (b -> Bool) -> Item b -> Doc ann
 prettyItem envelop bodyIsEmpty (Item w s n d b) = envelop (pretty w <> "@" <> pretty s)
                                    <+> pretty n
                                    <+> dquotes (pretty d)
