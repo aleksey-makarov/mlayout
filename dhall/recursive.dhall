@@ -1,23 +1,19 @@
-let Person
-    : Type
-    =   ∀(Person : Type)
-      → ∀(MakePerson : { children : List Person, name : Text } → Person)
-      → Person
+let PersonFunctor
+    : Type → Type
+    = λ(A : Type) → { children : List A, name : Text }
+
+let Person : Type = ∀(A : Type) → (PersonFunctor A → A) → A
 
 let personCreate
     : Text → Person
     =   λ(name : Text)
       → λ(Person : Type)
-      → λ(MakePerson : { children : List Person, name : Text } → Person)
-      → MakePerson { children = [] : List Person, name = name }
+      → λ(makePerson : PersonFunctor Person → Person)
+      → makePerson { children = [] : List Person, name = name }
 
 let personAddChild
     : Person → Person → Person
-    =   λ(person : Person)
-      → λ(child : Person)
-      → λ(_Person : Type)
-      → λ(MakePerson : { children : List _Person, name : Text } → _Person)
-      → MakePerson
+    = λ(p : Person) → λ(c : Person) → p
 
 let example
     : Person
