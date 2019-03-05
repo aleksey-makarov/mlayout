@@ -5,43 +5,40 @@ let PersonFunctor
 let Person : Type = ∀(A : Type) → (PersonFunctor A → A) → A
 
 let personCreate
-    : Text → Person
+    : Text → List Person → Person
     =   λ(name : Text)
+      → λ(children : List Person)
       → λ(A : Type)
       → λ(f : PersonFunctor A → A)
-      → f { children = [] : List A, name = name }
-
-let personAddChild
-    : Person → Person → Person
-    =   λ(p : Person)
-      → λ(c : Person)
-      → λ(A : Type)
-      → λ(f : PersonFunctor A → A)
-      → let cx : A = c A f
+      → let mapF = λ(p : Person) → p A f
         
-        let ff
-            : PersonFunctor A → A
-            =   λ(pf : PersonFunctor A)
-              → f { children = pf.children # [ cx ], name = pf.name ++ "." }
-        
-        in  p A ff
+        in  f
+            { children =
+                ./List/map Person A mapF children : List A
+            , name =
+                name
+            }
 
 let example
     : Person
-    = personAddChild
-      (personAddChild (personCreate "John") (personCreate "Mary"))
-      (personCreate "Jane")
+    = personCreate
+      "John"
+      [ personCreate
+        "Mary"
+        [ personCreate "MaryChild1" ([] : List Person)
+        , personCreate "MaryChild2" ([] : List Person)
+        ]
+      , personCreate "Jane" ([] : List Person)
+      ]
 
 let everybody
     : Person → List Text
-    = let concat = http://prelude.dhall-lang.org/List/concat
-      
-      in    λ(x : Person)
-          → x
-            (List Text)
-            (   λ(p : { children : List (List Text), name : Text })
-              → [ p.name ] # concat Text p.children
-            )
+    =   λ(x : Person)
+      → x
+        (List Text)
+        (   λ(p : { children : List (List Text), name : Text })
+          → [ p.name ] # ./List/concat Text p.children
+        )
 
 let result : List Text = everybody example
 
