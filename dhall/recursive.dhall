@@ -72,16 +72,16 @@ let extractChildren
     : Text → List Person → List Person
     = λ(name : Text) → λ(children : List Person) → children
 
+let getChildren
+    : Person → List Person
+    = λ(p : Person) → personDestruct (List Person) p extractChildren
+
 in  { everybody =
         everybody example
     , nameOfTheTop =
         getName example
     , namesOfChildren =
-        ./List/map
-        Person
-        Text
-        getName
-        (personDestruct (List Person) example extractChildren)
+        ./List/map Person Text getName (getChildren example)
     , withNewChild =
         personAddChild example (personCreate "NewChild" ([] : List Person))
     }
