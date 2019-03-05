@@ -7,13 +7,22 @@ let Person : Type = ∀(A : Type) → (PersonFunctor A → A) → A
 let personCreate
     : Text → Person
     =   λ(name : Text)
-      → λ(Person : Type)
-      → λ(makePerson : PersonFunctor Person → Person)
-      → makePerson { children = [] : List Person, name = name }
+      → λ(A : Type)
+      → λ(f : PersonFunctor A → A)
+      → f { children = [] : List A, name = name }
 
 let personAddChild
     : Person → Person → Person
-    = λ(p : Person) → λ(c : Person) → p
+    =   λ(p : Person)
+      → λ(c : Person)
+      → λ(A : Type)
+      → λ(f : PersonFunctor A → A)
+      → let ff
+            : PersonFunctor A → A
+            =   λ(pf : { children : List A, name : Text })
+              → f { children = pf.children, name = pf.name ++ "." }
+        
+        in  p A ff
 
 let example
     : Person
