@@ -1,0 +1,7 @@
+  λ(undefined : λ(A : Type) → A)
+→ let Tree = ∀(A : Type) → ∀(B : Type) → (A → B) → (List A → B) → B
+  
+  -- let mkLeaf = λ(A : Type) → undefined (Tree A)
+  let XXX = Text
+  
+  in  "asdf"

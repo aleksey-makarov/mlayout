@@ -19,6 +19,28 @@ let personCreate
                 name
             }
 
+let personDestruct
+    : ∀(B : Type) → Person → (Text → List Person → B) → B
+    =   λ(B : Type)
+      → λ(p : Person)
+      → λ(f : Text → List Person → B)
+      → f "lalala" [ p ]
+
+let personAddChild
+    : Person → Person → Person
+    =   λ(p : Person)
+      → λ(c : Person)
+      → λ(A : Type)
+      → λ(f : PersonFunctor A → A)
+      → let ca : A = c A f
+        
+        let ff
+            : PersonFunctor A → A
+            =   λ(pf : PersonFunctor A)
+              → f { children = pf.children # [ ca ], name = pf.name ++ "." }
+        
+        in  p A ff
+
 let example
     : Person
     = personCreate
@@ -40,6 +62,26 @@ let everybody
           → [ p.name ] # ./List/concat Text p.children
         )
 
-let result : List Text = everybody example
+let extractName
+    : Text → List Person → Text
+    = λ(name : Text) → λ(_ : List Person) → name
 
-in  result
+let getName : Person → Text = λ(p : Person) → personDestruct Text p extractName
+
+let extractChildren
+    : Text → List Person → List Person
+    = λ(name : Text) → λ(children : List Person) → children
+
+in  { everybody =
+        everybody example
+    , nameOfTheTop =
+        getName example
+    , namesOfChildren =
+        ./List/map
+        Person
+        Text
+        getName
+        (personDestruct (List Person) example extractChildren)
+    , withNewChild =
+        personAddChild example (personCreate "NewChild" ([] : List Person))
+    }
