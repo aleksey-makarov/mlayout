@@ -24,7 +24,17 @@ let personDestruct
     =   λ(B : Type)
       → λ(p : Person)
       → λ(f : Text → List Person → B)
-      → f "lalala" [ p ]
+      → let extractName
+            : PersonFunctor Text → Text
+            = λ(pf : PersonFunctor Text) → pf.name
+        
+        let extractChildren
+            : PersonFunctor Person → Person
+            = λ(pf : PersonFunctor Person) → personCreate pf.name pf.children
+        
+        in  f (p Text extractName) ([] : List Person)
+
+let getChildren1 : Person → List Person = λ(p : Person) → [] : List Person
 
 let personAddChild
     : Person → Person → Person
@@ -82,6 +92,8 @@ in  { everybody =
         getName example
     , namesOfChildren =
         ./List/map Person Text getName (getChildren example)
+    , namesOfChildren1 =
+        ./List/map Person Text getName (getChildren1 example)
     , withNewChild =
         personAddChild example (personCreate "NewChild" ([] : List Person))
     }
