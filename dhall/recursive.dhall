@@ -17,10 +17,12 @@ let personAddChild
       → λ(c : Person)
       → λ(A : Type)
       → λ(f : PersonFunctor A → A)
-      → let ff
+      → let cx : A = c A f
+        
+        let ff
             : PersonFunctor A → A
-            =   λ(pf : { children : List A, name : Text })
-              → f { children = pf.children, name = pf.name ++ "." }
+            =   λ(pf : PersonFunctor A)
+              → f { children = pf.children # [ cx ], name = pf.name ++ "." }
         
         in  p A ff
 
