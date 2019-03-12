@@ -6,6 +6,7 @@ let Person : Type = ∀(A : Type) → (PersonFunctor A → A) → A
 
 let personCreate
     : Text → List Person → Person
+    : Text → List Person → Person
     =   λ(name : Text)
       → λ(children : List Person)
       → λ(A : Type)
