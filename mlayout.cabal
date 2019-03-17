@@ -55,7 +55,9 @@ executable mlayout
     build-depends:       base >= 4.9 && < 5
                        , bytestring
                        , mlayout
+                       , filepath
                        , foldl
+                       , optparse-applicative
                        , prettyprinter
                        , trifecta >= 2
                        , turtle >= 1.5.10
