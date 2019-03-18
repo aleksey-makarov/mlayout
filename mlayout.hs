@@ -65,7 +65,7 @@ opts = info (helper <*> optsParser)
     <> progDesc
         (  "Transform input files in MLayout format into pretty printed MLayout files, "
         ++ "JSON files, or TEMPLATE files processed by EDE engine. "
-        ++ "Put the result into directoty OUTDIR replacing \'.mlayout\' suffixes with SUFFIX."
+        ++ "Put the results into directoty OUTDIR replacing \'.mlayout\' suffixes with SUFFIX."
         )
     )
 
