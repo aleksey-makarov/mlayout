@@ -4,12 +4,17 @@
 
 module Main (main) where
 
+import           Control.Monad.IO.Class
 import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Util
+import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified MLayout.Parser as ML
 import           Options.Applicative
+import           System.Exit
 import           System.FilePath
-import           Text.Trifecta.Parser (parseFromFile)
+import           System.IO
+import qualified Text.PrettyPrint.ANSI.Leijen as TPP
+import qualified Text.Trifecta.Parser as TRI
+import qualified Text.Trifecta.Result as TRI
 
 data OutputType = Pretty | JSON | Format FilePath deriving Show
 
@@ -73,28 +78,48 @@ mlayout :: MLayoutOptions -> IO ()
 mlayout MLayoutOptions {..} = do
 
     let
-        (inFile : _) = inFiles
         outSuffixFromOutputType = case outputType of
             Pretty   -> "mlayout"
             JSON     -> "json"
             Format t -> takeBaseName t
         outSuffix = maybe outSuffixFromOutputType id outSuffix'
+        fileNameInToOut name = outDir </> replaceExtension (takeBaseName name) outSuffix
+
+        putDocFile :: FilePath -> Doc ann -> IO ()
+        putDocFile path doc = withFile path WriteMode putDocFile'
+            where
+                putDocFile' :: Handle -> IO ()
+                putDocFile' h = hPutDoc h doc
+
+        prettyPrint :: FilePath -> IO ()
+        prettyPrint inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
+            TRI.Success doc -> putDocFile (fileNameInToOut inFile) $ vcat $ fmap pretty doc
+            TRI.Failure xs  -> do
+                liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
+                exitWith $ ExitFailure 1
+
+        printJSON :: FilePath -> IO ()
+        printJSON _ = return ()
+
+        prepareAction :: OutputType -> IO (FilePath -> IO ())
+        prepareAction Pretty = return prettyPrint
+        prepareAction JSON = return printJSON
+        prepareAction (Format inFile) = do
+            putStrLn $ "prepare action for template " ++ inFile ++ " NOT IMPLEMENTED"
+            return (\ _ -> return ())
 
     print outputType
     print inFiles
     print outDir
     print outSuffix
+    let
+        printAction name = putStrLn $ name ++ " -> " ++ fileNameInToOut name
+    mapM_ printAction inFiles
 
-    parseFromFile ML.parser inFile >>= \ case
-        Just x -> mapM_ (putDocW 80 . (<> line) . pretty) x
-        Nothing -> return ()
+    a <- prepareAction outputType
+    mapM_ a inFiles
 
-    -- result <- parseFromFile parser inFile
-    -- case result of
-    --     Nothing -> putStrLn "Failure"
-    --     Just x  -> do
-    --         putStrLn "Success"
-    --         print x
+    exitWith ExitSuccess
 
 main :: IO ()
 main = execParser opts >>= mlayout
