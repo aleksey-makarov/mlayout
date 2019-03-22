@@ -6,6 +6,7 @@
 module Main (main) where
 
 import           Control.Monad.IO.Class
+import           Data.Aeson
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified MLayout.Parser as ML
@@ -86,7 +87,7 @@ mlayout MLayoutOptions {..} = do
         outSuffix = maybe outSuffixFromOutputType id outSuffix'
         fileNameInToOut name = outDir </> replaceExtension (takeBaseName name) outSuffix
 
-        parseFile :: FilePath -> IO ML.MLayout
+        parseFile :: FilePath -> IO [ML.MLayout]
         parseFile inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
             TRI.Success ok -> return ok
             TRI.Failure xs  -> do
@@ -99,13 +100,13 @@ mlayout MLayoutOptions {..} = do
                 putDocFile' :: Handle -> IO ()
                 putDocFile' h = hPutDoc h doc
 
-        prettyPrint :: FilePath -> ML.MLayout -> IO ()
+        prettyPrint :: Pretty p => FilePath -> [p] -> IO ()
         prettyPrint inFile layout = putDocFile (fileNameInToOut inFile) $ vcat $ fmap pretty layout
 
-        printJSON :: FilePath -> ML.MLayout -> IO ()
+        printJSON :: ToJSON j => FilePath -> [j] -> IO ()
         printJSON _ _ = return ()
 
-        prepareAction :: OutputType -> IO (FilePath -> ML.MLayout -> IO ())
+        prepareAction :: OutputType -> IO (FilePath -> [ML.MLayout] -> IO ())
         prepareAction Pretty = return prettyPrint
         prepareAction JSON = return printJSON
         prepareAction (Format inFile) = do

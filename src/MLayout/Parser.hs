@@ -151,7 +151,7 @@ data LayoutBody
     deriving Show
 type LayoutItem = Item LayoutBody
 
-type MLayout = [LayoutItem]
+type MLayout = LayoutItem
 
 -- FIXME: use this for itemToList
 itemToList :: Item b -> [(Word, Word)]
