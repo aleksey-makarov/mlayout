@@ -7,6 +7,8 @@ module Main (main) where
 
 import           Control.Monad.IO.Class
 import           Data.Aeson
+import           Data.Aeson.Encode.Pretty
+import qualified Data.ByteString.Lazy as BL
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified MLayout.Parser as ML
@@ -104,7 +106,7 @@ mlayout MLayoutOptions {..} = do
         prettyPrint inFile layout = putDocFile (fileNameInToOut inFile) $ vcat $ fmap pretty layout
 
         printJSON :: ToJSON j => FilePath -> [j] -> IO ()
-        printJSON _ _ = return ()
+        printJSON inFile layout = BL.writeFile inFile $ encodePretty $ toJSONList layout
 
         prepareAction :: OutputType -> IO (FilePath -> [ML.MLayout] -> IO ())
         prepareAction Pretty = return prettyPrint

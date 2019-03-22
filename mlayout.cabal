@@ -54,6 +54,7 @@ executable mlayout
     main-is:             mlayout.hs
     build-depends:       base >= 4.9 && < 5
                        , aeson
+                       , aeson-pretty
                        , ansi-wl-pprint
                        , bytestring
                        , mlayout
