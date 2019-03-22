@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main (main) where
 
@@ -85,28 +86,31 @@ mlayout MLayoutOptions {..} = do
         outSuffix = maybe outSuffixFromOutputType id outSuffix'
         fileNameInToOut name = outDir </> replaceExtension (takeBaseName name) outSuffix
 
+        parseFile :: FilePath -> IO ML.MLayout
+        parseFile inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
+            TRI.Success ok -> return ok
+            TRI.Failure xs  -> do
+                liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
+                exitWith $ ExitFailure 1
+
         putDocFile :: FilePath -> Doc ann -> IO ()
         putDocFile path doc = withFile path WriteMode putDocFile'
             where
                 putDocFile' :: Handle -> IO ()
                 putDocFile' h = hPutDoc h doc
 
-        prettyPrint :: FilePath -> IO ()
-        prettyPrint inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
-            TRI.Success doc -> putDocFile (fileNameInToOut inFile) $ vcat $ fmap pretty doc
-            TRI.Failure xs  -> do
-                liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
-                exitWith $ ExitFailure 1
+        prettyPrint :: FilePath -> ML.MLayout -> IO ()
+        prettyPrint inFile layout = putDocFile (fileNameInToOut inFile) $ vcat $ fmap pretty layout
 
-        printJSON :: FilePath -> IO ()
-        printJSON _ = return ()
+        printJSON :: FilePath -> ML.MLayout -> IO ()
+        printJSON _ _ = return ()
 
-        prepareAction :: OutputType -> IO (FilePath -> IO ())
+        prepareAction :: OutputType -> IO (FilePath -> ML.MLayout -> IO ())
         prepareAction Pretty = return prettyPrint
         prepareAction JSON = return printJSON
         prepareAction (Format inFile) = do
             putStrLn $ "prepare action for template " ++ inFile ++ " NOT IMPLEMENTED"
-            return (\ _ -> return ())
+            return (\ _ _ -> return ())
 
     print outputType
     print inFiles
@@ -116,8 +120,14 @@ mlayout MLayoutOptions {..} = do
         printAction name = putStrLn $ name ++ " -> " ++ fileNameInToOut name
     mapM_ printAction inFiles
 
-    a <- prepareAction outputType
-    mapM_ a inFiles
+    outputAction <- prepareAction outputType
+
+    let
+        doFile inFile = do
+            parsed <- parseFile inFile
+            outputAction (fileNameInToOut inFile) parsed
+
+    mapM_ doFile inFiles
 
     exitWith ExitSuccess
 

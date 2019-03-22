@@ -53,6 +53,7 @@ executable mlayout
     hs-source-dirs:      .
     main-is:             mlayout.hs
     build-depends:       base >= 4.9 && < 5
+                       , aeson
                        , ansi-wl-pprint
                        , bytestring
                        , mlayout

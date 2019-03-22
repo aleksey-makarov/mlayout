@@ -10,7 +10,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Parser
-    ( parser
+    ( MLayout
+    , parser
     ) where
 
 import           Prelude as P
@@ -149,6 +150,8 @@ data LayoutBody
     | LayoutBodyBitmap BitmapBody
     deriving Show
 type LayoutItem = Item LayoutBody
+
+type MLayout = [LayoutItem]
 
 -- FIXME: use this for itemToList
 itemToList :: Item b -> [(Word, Word)]
