@@ -4,36 +4,13 @@
 module Main (main) where
 
 import           Control.Foldl hiding (fold, mapM_)
-import           Data.Aeson
-import           Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy as BL
-import           Data.Text.Prettyprint.Doc hiding (list)
-import           Data.Text.Prettyprint.Doc.Render.Text
 import           Prelude hiding (FilePath)
-import           MLayout.Parser
-import           System.IO hiding(FilePath)
 import           Test.Tasty
 import           Test.Tasty.Golden
 import           Test.Tasty.HUnit
-import qualified Text.PrettyPrint.ANSI.Leijen as PAL
-import           Text.Trifecta.Parser
-import           Text.Trifecta.Result
 import           Turtle hiding (f, x, e)
 
-putDocFile :: String -> Doc ann -> IO ()
-putDocFile pathString doc = withFile pathString WriteMode putDocFile'
-    where
-        putDocFile' :: Handle -> IO ()
-        putDocFile' h = hPutDoc h doc
-
-putErrInfoFile :: String -> ErrInfo -> IO ()
-putErrInfoFile pathString e = withFile pathString WriteMode putErrInfoFile'
-    where
-        doc = _errDoc e
-        -- FIXME: don't print formatting symbols into the error file
-        putErrInfoFile' h = PAL.hPutDoc h doc
-
-rmIfExists :: FilePath -> Shell ()
+rmIfExists :: MonadIO io => FilePath -> io ()
 rmIfExists p = do
     b <- testfile p
     when b $ rm p
@@ -64,17 +41,19 @@ makeTestCase path =
         jsonErrPath          = jsonPath <.> "err"
         jsonGoldPath         = jsonPath <.> "gold"
 
-        mkPrettyOk :: Pretty d => [d] -> IO ()
-        mkPrettyOk doc = putDocFile (encodeString prettyPath) $ vcat $ fmap pretty doc
-
-        mkJSONOk :: ToJSON d => [d] -> IO ()
-        mkJSONOk doc = BL.writeFile (encodeString jsonPath) $ encodePretty $ toJSONList doc
-
         mkPretty :: IO ()
-        mkPretty = parseFromFileEx parser (encodeString path) >>= foldResult (putErrInfoFile (encodeString prettyErrPath)) mkPrettyOk
+        mkPretty = do
+            ec <- shell (format ("mlayout -p " % fp % " " % fp % " 2> " % fp) path prettyPath prettyErrPath) empty
+            case ec of
+                ExitSuccess -> rmIfExists prettyErrPath
+                ExitFailure _ -> rmIfExists prettyPath
 
         mkJSON :: IO ()
-        mkJSON = parseFromFileEx parser (encodeString path) >>= foldResult (putErrInfoFile (encodeString jsonErrPath)) mkJSONOk
+        mkJSON = do
+            ec <- shell (format ("mlayout -j " % fp % " " % fp % " 2> " % fp) path jsonPath jsonErrPath) empty
+            case ec of
+                ExitSuccess -> rmIfExists jsonErrPath
+                ExitFailure _ -> rmIfExists jsonPath
 
         mkGoldPretty :: TestTree
         mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty

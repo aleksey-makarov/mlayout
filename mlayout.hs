@@ -148,8 +148,8 @@ fileExistsAndIsDir f = do
 mlayout :: MLayoutOptions -> IO ()
 mlayout MLayoutOptions {..} = do
 
-    print outputTypeOpt
-    print inOutOpt
+    -- print outputTypeOpt
+    -- print inOutOpt
 
     let
 
