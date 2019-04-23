@@ -50,11 +50,13 @@ executable mlayout
                        , aeson-pretty
                        , ansi-wl-pprint
                        , bytestring
+                       , ede
                        , mlayout
                        , filepath
                        , foldl
                        , optparse-applicative
                        , prettyprinter
+                       , text
                        , trifecta >= 2
                        , turtle >= 1.5.10
                        , unix

@@ -3,3 +3,6 @@ resolver: lts-13.17
 packages:
   - .
 
+extra-deps:
+- github: aleksey-makarov/ede
+  commit: f98f83b778f1f8d87beeaecff98da99b82053445

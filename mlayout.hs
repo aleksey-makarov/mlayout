@@ -9,6 +9,7 @@ import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy as BL
+import           Data.Text.Lazy.Encoding
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 import qualified MLayout.Parser as ML
@@ -17,6 +18,8 @@ import           System.Exit
 import           System.FilePath
 import           System.Posix.Files
 import           System.IO
+import           Text.EDE               as EDE hiding (failure, parseFile)
+import qualified Text.EDE               as EDE
 import qualified Text.PrettyPrint.ANSI.Leijen as TPP
 import qualified Text.Trifecta.Parser as TRI
 import qualified Text.Trifecta.Result as TRI
@@ -138,6 +141,17 @@ printJSON withFile' j = withFile' f
         f :: Handle -> IO ()
         f h = BL.hPut h $ encodePretty $ toJSONList j
 
+applyTemplate :: ToJSON j => Template -> WithFile -> [j] -> IO ()
+applyTemplate template withFile' _j = do
+    let
+        obj = fromPairs [ "filename"  .= String "lalala" ]
+        res = render template obj
+    case res of
+        EDE.Success txt -> withFile' $ \ h -> BL.hPut h $ encodeUtf8 txt
+        EDE.Failure doc -> do
+            liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
+            exitWith $ ExitFailure 1
+
 fileExistsAndIsDir :: FilePath -> IO Bool
 fileExistsAndIsDir f = do
     e <- fileExist f
@@ -158,8 +172,12 @@ mlayout MLayoutOptions {..} = do
             Pretty        -> return prettyPrint
             JSON          -> return printJSON
             Format inFile -> do
-                putStrLn $ "prepare output action for template " ++ inFile ++ " NOT IMPLEMENTED"
-                return (\ _ _ -> return ())
+                res <- EDE.parseFile inFile
+                case res of
+                    EDE.Success template -> return $ applyTemplate template
+                    EDE.Failure doc -> do
+                        liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
+                        exitWith $ ExitFailure 1
 
         parseFile :: FilePath -> IO [ML.MLayout]
         parseFile inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
@@ -179,14 +197,14 @@ mlayout MLayoutOptions {..} = do
                         Just outFileOrDir -> do
                             dir <- fileExistsAndIsDir outFileOrDir
                             return $ withOutFilePath $ if dir
-                                then outFileOrDir </> replaceExtension (takeBaseName inFileOpt) outSuffix
+                                then outFileOrDir </> (takeBaseName inFileOpt) <.> outSuffix
                                 else outFileOrDir
                         Nothing -> return withOutFileStdout
 
                     outSuffix = case outputTypeOpt of
-                        Pretty   -> "mlayout"
-                        JSON     -> "json"
-                        Format _ -> undefined
+                        Pretty          -> "mlayout"
+                        JSON            -> "json"
+                        Format template -> takeBaseName template
 
     outputAction <- prepareOuputAction
 
