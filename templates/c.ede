@@ -2,8 +2,7 @@
 #define __{{filename}}_h__
 
 /*
- * Generated:
-{# {{time}} #}
+ * Generated: {{time}}
  */
 
 {#

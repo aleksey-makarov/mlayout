@@ -47,7 +47,8 @@ data InOutSpecification
 
 data MLayoutOptions
     = MLayoutOptions
-        { outputTypeOpt :: OutputType
+        { idStringOpt :: Maybe Text
+        , outputTypeOpt :: OutputType
         , inOutOpt  :: InOutSpecification
         }
 
@@ -56,11 +57,18 @@ data MLayoutOptions
 -- FIXME: "-d -" should specify output to stdout
 optsParser :: Parser MLayoutOptions
 optsParser = MLayoutOptions
-    <$> outputTypeParser
+    <$> idStringParser
+    <*> outputTypeParser
     <*> inOutSpecParser
         where
             outputTypeParser = prettyOutputParser <|> jsonOutputParser <|> formatOutputParser
             inOutSpecParser = singleInputFileParser -- <|> manyInputFilesParser
+            idStringParser = optional (strOption
+                (  long "id"
+                <> short 'i'
+                <> metavar "ID_STRING"
+                <> help "ID string to use in the result's header"
+                ))
             prettyOutputParser = flag' Pretty
                 (  long "pretty"
                 <> short 'p'
@@ -114,6 +122,7 @@ opts = info (helper <*> optsParser)
         ++ "The utility reads INPUT_FILE, processes it and outputs the result to OUTPUT_FILE_OR_DIR. "
 --        ++ "If OUTPUT_DIR is specified, all FILES will be processed at one pass and written to files in that directory. "
 --        ++ "The resulting files will have the same basename with suffix \'.mlayout\' changed to SUFFIX."
+        ++ "ID_STRING replaces generated id string"
         )
     )
 
@@ -158,7 +167,12 @@ mlayout MLayoutOptions {..} = do
     -- print inOutOpt
 
     let
+        mkIdString :: IO Text
+        mkIdString = formatTimeRFC822 <$> getZonedTime
 
+    idString <- maybe mkIdString return idStringOpt
+
+    let
         prepareOuputAction :: IO (FilePath -> WithFile -> [ML.MLayout] -> IO ())
         prepareOuputAction = case outputTypeOpt of
             Pretty                  -> return (\ _ -> prettyPrint)
@@ -170,9 +184,8 @@ mlayout MLayoutOptions {..} = do
                         where
                             applyTemplate :: ToJSON j => FilePath -> WithFile -> [j] -> IO ()
                             applyTemplate inFile withFile' j = do
-                                time <- formatTimeRFC822 <$> getZonedTime
                                 let
-                                    obj = fromPairs [ "time"     .= String time
+                                    obj = fromPairs [ "time"     .= String idString
                                                     , "filename" .= (String $ pack $ takeBaseName inFile)
                                                     , "data"     .= toJSON j
                                                     ]

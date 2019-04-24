@@ -63,7 +63,7 @@ makeTestCase outDir goldDir path =
         mkJSON = mkSomething "-j" jsonPath
 
         mkC :: FilePath -> IO ()
-        mkC template = mkSomething (format ("-f " % fp) template) (cPath template)
+        mkC template = mkSomething (format ("-i FAKE_ID -f " % fp) template) (cPath template)
 
         mkGoldPretty :: TestTree
         mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
