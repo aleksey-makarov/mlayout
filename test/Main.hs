@@ -22,9 +22,10 @@ makeTestCase outDir goldDir path =
             rmIfExists errPath
             rmIfExists prettyPath
             rmIfExists jsonPath
+            mapM_ (rmIfExists . cPath) templates
             return $ if (dropExtension path) `hasExtension` "err"
                 then [mkErr]
-                else [mkGoldPretty, mkGoldJSON]
+                else mkGoldPretty : mkGoldJSON : mkGoldCs
         else mzero
     where
 
@@ -34,12 +35,17 @@ makeTestCase outDir goldDir path =
         testErrorName  = pathBaseName ++ " (error)"
         testPrettyName = pathBaseName ++ " (pretty)"
         testJSONName   = pathBaseName ++ " (json)"
+        testCName t    = pathBaseName ++ " (c)"
+
+        templates = ["templates/c.ede"] :: [FilePath]
 
         errPath        = outDir  </> pathFile <.> "err"
-        prettyPath     = outDir  </> pathFile <.> "pretty"
         prettyGoldPath = goldDir </> pathFile <.> "pretty" <.> "gold"
+        prettyPath     = outDir  </> pathFile <.> "pretty"
         jsonPath       = outDir  </> pathFile <.> "json"
         jsonGoldPath   = goldDir </> pathFile <.> "json" <.> "gold"
+        cPath     t    = outDir  </> pathFile <.> "h"
+        cGoldPath t    = goldDir </> pathFile <.> "h" <.> "gold"
 
         mkSomething :: Text -> FilePath -> IO ()
         mkSomething flag okPath = do
@@ -54,14 +60,23 @@ makeTestCase outDir goldDir path =
         mkJSON :: IO ()
         mkJSON = mkSomething "-j" jsonPath
 
+        mkC :: FilePath -> IO ()
+        mkC template = mkSomething (format ("-f " % fp) template) (cPath template)
+
         mkGoldPretty :: TestTree
         mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
 
         mkGoldJSON :: TestTree
         mkGoldJSON = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
 
-        -- mkGoldC :: TestTree
-        -- mkGoldC = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
+        mkGoldC :: FilePath -> TestTree
+        mkGoldC template = goldenVsFile (testCName template)
+                                        (encodeString $ cGoldPath template)
+                                        (encodeString $ cPath template)
+                                        (mkC template)
+
+        mkGoldCs :: [TestTree]
+        mkGoldCs = fmap mkGoldC templates
 
         mkErr :: TestTree
         mkErr = testCase testErrorName $ do

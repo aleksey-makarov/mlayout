@@ -2,11 +2,11 @@
 top=`pwd`
 
 rm_out() {
-    rm -f *.json *.pretty *.err
+    rm -f *.json *.pretty *.err *.h
 }
 
 rm_gold() {
-    rm -f *.json.gold
+    rm -f *.json.gold *.h.gold
 }
 
 cd $top/test/out
