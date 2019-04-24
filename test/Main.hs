@@ -4,6 +4,7 @@
 module Main (main) where
 
 import           Control.Foldl hiding (fold, mapM_)
+import           Data.Text (unpack)
 import           Prelude hiding (FilePath)
 import           Test.Tasty
 import           Test.Tasty.Golden
@@ -35,17 +36,18 @@ makeTestCase outDir goldDir path =
         testErrorName  = pathBaseName ++ " (error)"
         testPrettyName = pathBaseName ++ " (pretty)"
         testJSONName   = pathBaseName ++ " (json)"
-        testCName t    = pathBaseName ++ " (c)"
+        testCName t    = unpack $ format (fp % " (" % fp % ")") (basename path) (filename t)
 
-        templates = ["templates/c.ede"] :: [FilePath]
+        templates :: [FilePath]
+        templates = ["templates/c.ede"]
 
         errPath        = outDir  </> pathFile <.> "err"
         prettyGoldPath = goldDir </> pathFile <.> "pretty" <.> "gold"
         prettyPath     = outDir  </> pathFile <.> "pretty"
         jsonPath       = outDir  </> pathFile <.> "json"
         jsonGoldPath   = goldDir </> pathFile <.> "json" <.> "gold"
-        cPath     t    = outDir  </> pathFile <.> "h"
-        cGoldPath t    = goldDir </> pathFile <.> "h" <.> "gold"
+        cPath     t    = outDir  </> pathFile <.> (format fp $ basename t)
+        cGoldPath t    = goldDir </> pathFile <.> (format fp $ basename t) <.> "gold"
 
         mkSomething :: Text -> FilePath -> IO ()
         mkSomething flag okPath = do
