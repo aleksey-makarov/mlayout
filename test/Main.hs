@@ -15,45 +15,44 @@ rmIfExists p = do
     b <- testfile p
     when b $ rm p
 
-makeTestCase :: FilePath -> Shell [TestTree]
-makeTestCase path =
+makeTestCase :: FilePath -> FilePath -> FilePath -> Shell [TestTree]
+makeTestCase outDir goldDir path =
     if path `hasExtension` "mlayout"
         then do
+            rmIfExists errPath
             rmIfExists prettyPath
-            rmIfExists prettyErrPath
             rmIfExists jsonPath
-            rmIfExists jsonErrPath
             return $ if (dropExtension path) `hasExtension` "err"
                 then [mkErr]
                 else [mkGoldPretty, mkGoldJSON]
         else mzero
     where
 
-        testErrorName  = (encodeString $ basename path) ++ " (error)"
-        testPrettyName = (encodeString $ basename path) ++ " (pretty)"
-        testJSONName   = (encodeString $ basename path) ++ " (json)"
+        pathBaseName = encodeString $ basename path
+        pathFile = filename path
 
-        prettyPath           = path <.> "pretty"
-        prettyErrPath        = prettyPath <.> "err"
-        prettyGoldPath       = prettyPath <.> "gold"
+        testErrorName  = pathBaseName ++ " (error)"
+        testPrettyName = pathBaseName ++ " (pretty)"
+        testJSONName   = pathBaseName ++ " (json)"
 
-        jsonPath             = path <.> "json"
-        jsonErrPath          = jsonPath <.> "err"
-        jsonGoldPath         = jsonPath <.> "gold"
+        errPath        = outDir  </> pathFile <.> "err"
+        prettyPath     = outDir  </> pathFile <.> "pretty"
+        prettyGoldPath = goldDir </> pathFile <.> "pretty" <.> "gold"
+        jsonPath       = outDir  </> pathFile <.> "json"
+        jsonGoldPath   = goldDir </> pathFile <.> "json" <.> "gold"
+
+        mkSomething :: Text -> FilePath -> IO ()
+        mkSomething flag okPath = do
+            ec <- shell (format ("mlayout " % s % " " % fp % " " % fp % " 2> " % fp) flag path okPath errPath) empty
+            case ec of
+                ExitSuccess -> rmIfExists errPath
+                ExitFailure _ -> rmIfExists okPath
 
         mkPretty :: IO ()
-        mkPretty = do
-            ec <- shell (format ("mlayout -p " % fp % " " % fp % " 2> " % fp) path prettyPath prettyErrPath) empty
-            case ec of
-                ExitSuccess -> rmIfExists prettyErrPath
-                ExitFailure _ -> rmIfExists prettyPath
+        mkPretty = mkSomething "-p" prettyPath
 
         mkJSON :: IO ()
-        mkJSON = do
-            ec <- shell (format ("mlayout -j " % fp % " " % fp % " 2> " % fp) path jsonPath jsonErrPath) empty
-            case ec of
-                ExitSuccess -> rmIfExists jsonErrPath
-                ExitFailure _ -> rmIfExists jsonPath
+        mkJSON = mkSomething "-j" jsonPath
 
         mkGoldPretty :: TestTree
         mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
@@ -61,15 +60,18 @@ makeTestCase path =
         mkGoldJSON :: TestTree
         mkGoldJSON = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
 
+        -- mkGoldC :: TestTree
+        -- mkGoldC = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
+
         mkErr :: TestTree
         mkErr = testCase testErrorName $ do
             mkPretty
-            b <- testfile prettyErrPath
+            b <- testfile errPath
             unless b $ assertFailure "should fail"
 
 main :: IO ()
 main = do
-    tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase) list
-    examples <- (testGroup "MLayout"  . concat) <$> fold (ls "mlayout"  >>= makeTestCase) list
+    tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase "test/out"         "test/gold"        ) list
+    examples <- (testGroup "MLayout"  . concat) <$> fold (ls "mlayout"  >>= makeTestCase "test/out/mlayout" "test/gold/mlayout") list
 
     defaultMain $ testGroup "Everyting" [tests, examples]
