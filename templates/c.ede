@@ -5,6 +5,8 @@
  * Generated: {{time}}
  */
 
+{#
+
 {% for word in bitfields %}
 /*
  * {{ word.key }}: {{word.value.name}} ({{word.value.width}} bits)
@@ -39,4 +41,7 @@
 
 {%   endfor %}
 {% endfor %}
+
+#}
+
 #endif

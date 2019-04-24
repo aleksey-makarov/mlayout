@@ -9,9 +9,12 @@ import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy as BL
+import           Data.Text
 import           Data.Text.Lazy.Encoding
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
+import           Data.Time.LocalTime
+import           Data.Time.RFC822
 import qualified MLayout.Parser as ML
 import           Options.Applicative
 import           System.Exit
@@ -141,17 +144,6 @@ printJSON withFile' j = withFile' f
         f :: Handle -> IO ()
         f h = BL.hPut h $ encodePretty $ toJSONList j
 
-applyTemplate :: ToJSON j => Template -> WithFile -> [j] -> IO ()
-applyTemplate template withFile' _j = do
-    let
-        obj = fromPairs [ "filename"  .= String "lalala" ]
-        res = render template obj
-    case res of
-        EDE.Success txt -> withFile' $ \ h -> BL.hPut h $ encodeUtf8 txt
-        EDE.Failure doc -> do
-            liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
-            exitWith $ ExitFailure 1
-
 fileExistsAndIsDir :: FilePath -> IO Bool
 fileExistsAndIsDir f = do
     e <- fileExist f
@@ -167,14 +159,29 @@ mlayout MLayoutOptions {..} = do
 
     let
 
-        prepareOuputAction :: IO (WithFile -> [ML.MLayout] -> IO ())
+        prepareOuputAction :: IO (FilePath -> WithFile -> [ML.MLayout] -> IO ())
         prepareOuputAction = case outputTypeOpt of
-            Pretty        -> return prettyPrint
-            JSON          -> return printJSON
-            Format inFile -> do
-                res <- EDE.parseFile inFile
+            Pretty                  -> return (\ _ -> prettyPrint)
+            JSON                    -> return (\ _ -> printJSON)
+            Format templateFileName -> do
+                res <- EDE.parseFile templateFileName
                 case res of
-                    EDE.Success template -> return $ applyTemplate template
+                    EDE.Success template -> return applyTemplate
+                        where
+                            applyTemplate :: ToJSON j => FilePath -> WithFile -> [j] -> IO ()
+                            applyTemplate inFile withFile' j = do
+                                time <- formatTimeRFC822 <$> getZonedTime
+                                let
+                                    obj = fromPairs [ "time"     .= String time
+                                                    , "filename" .= (String $ pack $ takeBaseName inFile)
+                                                    , "data"     .= toJSON j
+                                                    ]
+                                case render template obj of
+                                    EDE.Success txt -> withFile' $ \ h -> BL.hPut h $ encodeUtf8 txt
+                                    EDE.Failure doc -> do
+                                        liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
+                                        exitWith $ ExitFailure 1
+
                     EDE.Failure doc -> do
                         liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
                         exitWith $ ExitFailure 1
@@ -185,6 +192,12 @@ mlayout MLayoutOptions {..} = do
             TRI.Failure xs  -> do
                 liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
                 exitWith $ ExitFailure 1
+
+        outSuffix :: String
+        outSuffix = case outputTypeOpt of
+            Pretty          -> "mlayout"
+            JSON            -> "json"
+            Format template -> takeBaseName template
 
         prepareBatch :: IO [Task]
         prepareBatch = case inOutOpt of
@@ -201,17 +214,12 @@ mlayout MLayoutOptions {..} = do
                                 else outFileOrDir
                         Nothing -> return withOutFileStdout
 
-                    outSuffix = case outputTypeOpt of
-                        Pretty          -> "mlayout"
-                        JSON            -> "json"
-                        Format template -> takeBaseName template
-
     outputAction <- prepareOuputAction
 
     let
         doTask Task {..} = do
             parsed <- parseFile inFile
-            outputAction withOutFile parsed
+            outputAction inFile withOutFile parsed
 
     prepareBatch >>= mapM_ doTask
 
