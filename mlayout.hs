@@ -185,7 +185,7 @@ mlayout MLayoutOptions {..} = do
                             applyTemplate :: ToJSON j => FilePath -> WithFile -> [j] -> IO ()
                             applyTemplate inFile withFile' j = do
                                 let
-                                    obj = fromPairs [ "time"     .= String idString
+                                    obj = fromPairs [ "id"       .= String idString
                                                     , "filename" .= (String $ pack $ takeBaseName inFile)
                                                     , "data"     .= toJSON j
                                                     ]
@@ -194,7 +194,6 @@ mlayout MLayoutOptions {..} = do
                                     EDE.Failure doc -> do
                                         liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
                                         exitWith $ ExitFailure 1
-
                     EDE.Failure doc -> do
                         liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
                         exitWith $ ExitFailure 1
@@ -218,7 +217,7 @@ mlayout MLayoutOptions {..} = do
             -- ManyInputFiles {..} -> undefined
             SingleInputFile {..} -> (return . Task inFileOpt) <$> outFile
                 where
-                    outFile :: IO ((Handle -> IO ()) -> IO ())
+                    outFile :: IO WithFile
                     outFile = case outFileOrDirOpt of
                         Just outFileOrDir -> do
                             dir <- fileExistsAndIsDir outFileOrDir

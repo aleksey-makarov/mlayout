@@ -163,13 +163,14 @@ itemToList (Item w (StartSetPeriodic first n step) _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
 
-jsonItem :: ToJSON b => Item b -> Value
-jsonItem (Item w s n d b) = object [ "width"     .= w
-                                   , "start"     .= s
-                                   , "name"      .= n
-                                   , "docstring" .= d
-                                   , "children"  .= b
-                                   ]
+jsonItem :: ToJSON b => Text -> Item b -> Value
+jsonItem t (Item w s n d b) = object [ "width"     .= w
+                                     , "start"     .= s
+                                     , "name"      .= n
+                                     , "docstring" .= d
+                                     , "children"  .= b
+                                     , "type"      .= t
+                                     ]
 
 instance ToJSON BitmapBody where
     toJSON (BitmapBody valuesList bitmapItemList) = toJSONList $ fmap toJSON valuesList ++ fmap toJSON bitmapItemList
@@ -187,7 +188,7 @@ instance ToJSON StartSet where
     toJSON (StartSet1 start) = toJSON start
 
 instance ToJSON BitmapItem where
-    toJSON = jsonItem
+    toJSON = jsonItem "bitmap"
 
 instance ToJSON ValueItem where
     toJSON (ValueItem v n d) = object [ "value"     .= v
@@ -200,7 +201,7 @@ instance ToJSON LayoutBody where
     toJSON (LayoutBodyBitmap bitmapBody) = toJSON bitmapBody
 
 instance ToJSON LayoutItem where
-    toJSON = jsonItem
+    toJSON x = jsonItem (case (_body x) of LayoutBody _ -> "layout" ; LayoutBodyBitmap _ -> "layout_bitmaps") x
 
 bitmapBodyIsEmpty :: BitmapBody -> Bool
 bitmapBodyIsEmpty (BitmapBody [] []) = True

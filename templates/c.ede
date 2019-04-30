@@ -2,15 +2,15 @@
 #define __{{filename}}_h__
 
 /*
- * Generated: {{time}}
+ * Generated: {{id}}
  */
 
+{% for d in data %}
+{%  include "c_layout.ede" with layout = d.value %}
+{% endfor %}
 {#
 
-{% for word in bitfields %}
-/*
- * {{ word.key }}: {{word.value.name}} ({{word.value.width}} bits)
- */
+
 
 {%   let prefix = word.key %}
 {%     if word.value.values %}
@@ -40,7 +40,6 @@
 {%     endlet %}
 
 {%   endfor %}
-{% endfor %}
 
 #}
 

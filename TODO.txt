@@ -1,0 +1,5 @@
+1 tests
+2 eliminate Maybe in Item
+3 eliminate parameter from StartSet, rework ParsedLocation
+4 JSON
+5 JSON -> formatted
