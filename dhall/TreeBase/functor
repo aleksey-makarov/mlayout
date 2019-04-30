@@ -1,0 +1,13 @@
+let Functor = ./../Functor/Type
+
+let TreeBase = ./Type
+
+in    λ(d : Type)
+    →   { map =
+              λ(a : Type)
+            → λ(b : Type)
+            → λ(fn : a → b)
+            → λ(treeBase : TreeBase d a)
+            → treeBase ⫽ { subtrees = ../List/map a b fn treeBase.subtrees }
+        }
+      : Functor (TreeBase d)

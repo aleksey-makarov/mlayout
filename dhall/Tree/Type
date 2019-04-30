@@ -1,7 +1,8 @@
-  λ(undefined : λ(A : Type) → A)
-→ let Tree = ∀(A : Type) → ∀(B : Type) → (A → B) → (List A → B) → B
-  
-  -- let mkLeaf = λ(A : Type) → undefined (Tree A)
-  let XXX = Text
-  
-  in  "asdf"
+{-
+../TreeBase/Type = λ(d : Type) → λ(a : Type) → { data : d, subtrees : List a }
+../TreeBase/Type t = λ(a : Type) → { data : t, subtrees : List a }
+../Mu/Type = λ(f : Type → Type) → ∀(a' : Type) → (f a' → a') → a'
+../Mu/Type (../TreeBase/Type t) = ∀(a' : Type) → ({ data : t, subtrees : List a' } -> a') -> a'
+-}
+
+λ(t : Type) → ../Mu/Type (../TreeBase/Type t)
