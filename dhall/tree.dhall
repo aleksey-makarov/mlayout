@@ -12,25 +12,25 @@
       : TreeBase Natural Natural
       = { data = 42, subtrees = [ 12, 34 ] }
   
-  let textTreeCreate = Tree/create Text
+  let naturalTreeCreate = Tree/create Natural
   
   let tree1
-      : Tree Text
-      = textTreeCreate
-        "top"
-        [ textTreeCreate "child1" ([] : List (Tree Text))
-        , textTreeCreate
-          "child2"
-          [ textTreeCreate "grandChild1" ([] : List (Tree Text))
-          , textTreeCreate "grandChild2" ([] : List (Tree Text))
+      : Tree Natural
+      = naturalTreeCreate
+        1
+        [ naturalTreeCreate 11 ([] : List (Tree Natural))
+        , naturalTreeCreate
+          12
+          [ naturalTreeCreate 121 ([] : List (Tree Natural))
+          , naturalTreeCreate 122 ([] : List (Tree Natural))
           ]
-        , textTreeCreate "child3" ([] : List (Tree Text))
+        , naturalTreeCreate 13 ([] : List (Tree Natural))
         ]
   
   let foldTree1
-      : TreeBase Text Text → Text
-      =   λ(t : TreeBase Text Text)
-        → ./Text/concat ([ "<", t.data ] # t.subtrees # [ ">" ])
+      : TreeBase Natural Text → Text
+      =   λ(t : TreeBase Natural Text)
+        → ./Text/concat ([ "<", Natural/show t.data ] # t.subtrees # [ ">" ])
   
   in  { test01 =
           treeBase1
