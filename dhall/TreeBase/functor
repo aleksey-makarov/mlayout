@@ -2,14 +2,10 @@ let Functor = ./../Functor/Type
 
 let TreeBase = ./Type
 
-let List/map = ../List/map
+let TreeBase/bifunctor = ./bifunctor
 
-in    λ(d : Type)
-    →   { map =
-              λ(a : Type)
-            → λ(b : Type)
-            → λ(fn : a → b)
-            → λ(tb : TreeBase d a)
-            → tb ⫽ { subtrees = List/map a b fn tb.subtrees }
-        }
-      : Functor (TreeBase d)
+let Bifunctor/second = ../Bifunctor/second
+
+in    λ(a : Type)
+    →   { map = Bifunctor/second TreeBase TreeBase/bifunctor a }
+      : Functor (TreeBase a)
