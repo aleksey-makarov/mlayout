@@ -5,4 +5,8 @@
 ../Mu/Type (../TreeBase/Type t) = ∀(a' : Type) → ({ data : t, subtrees : List a' } -> a') -> a'
 -}
 
-λ(t : Type) → ../Mu/Type (../TreeBase/Type t)
+let Mu/Type = ../Mu/Type
+
+let TreeBase = ../TreeBase/Type
+
+in  λ(t : Type) → Mu/Type (TreeBase t)
