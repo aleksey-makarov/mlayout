@@ -4,22 +4,13 @@
   
   let Tree = ./Tree/Type
   
+  let Tree/create = ./Tree/create
+  
   let treeBase1
       : TreeBase Natural Natural
       = { data = 42, subtrees = [ 12, 34 ] }
   
-  let treeCreate
-      : ∀(t : Type) → t → List (Tree t) → Tree t
-      =   λ(t : Type)
-        → λ(data : t)
-        → λ(children : List (Tree t))
-        → λ(a : Type)
-        → λ(f : { data : t, subtrees : List a } → a)
-        → let fx = λ(t : Tree t) → t a f
-          
-          in  f { data = data, subtrees = ./List/map (Tree t) a fx children }
-  
-  let textTreeCreate = treeCreate Text
+  let textTreeCreate = Tree/create Text
   
   let tree1
       : Tree Text
