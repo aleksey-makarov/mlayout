@@ -1,0 +1,17 @@
+let Biunctor = ../Bifunctor/Type
+
+let TreeBase = ./Type
+
+let List/map = ../List/map
+
+in    { bimap =
+            λ(a : Type)
+          → λ(b : Type)
+          → λ(c : Type)
+          → λ(d : Type)
+          → λ(fl : a → c)
+          → λ(fr : b → d)
+          → λ(tb : TreeBase a b)
+          → { data = fl tb.data, subtrees = List/map b d fr tb.subtrees }
+      }
+    : Biunctor TreeBase
