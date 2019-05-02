@@ -12,6 +12,8 @@
   
   let Tree/functor = ./Tree/functor
   
+  let Tree/foldable = ./Tree/foldable
+  
   let treeBase1
       : TreeBase Natural Natural
       = { data = 42, subtrees = [ 12, 34 ] }
@@ -62,4 +64,6 @@
           tree1 Text foldTree1
       , test06 =
           tree1text Text foldTree1text
+      , test07 =
+          Tree/foldable.fold
       }
