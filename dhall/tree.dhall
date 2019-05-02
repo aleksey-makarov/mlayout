@@ -2,6 +2,7 @@
   λ(undefined : ∀(t : Type) → t)
 → let TreeBase = ./TreeBase/Type
   
+  let TreeBase/functor = ./TreeBase/functor
   let TreeBase/bifunctor = ./TreeBase/bifunctor
   
   let Tree = ./Tree/Type
@@ -35,7 +36,7 @@
   in  { test01 =
           treeBase1
       , test02 =
-          (./TreeBase/functor Natural).map Natural Text Natural/show treeBase1
+          (TreeBase/functor Natural).map Natural Text Natural/show treeBase1
       , test03 =
           TreeBase/bifunctor.bimap
           Natural
