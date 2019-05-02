@@ -3,11 +3,14 @@
 → let TreeBase = ./TreeBase/Type
   
   let TreeBase/functor = ./TreeBase/functor
+  
   let TreeBase/bifunctor = ./TreeBase/bifunctor
   
   let Tree = ./Tree/Type
   
   let Tree/create = ./Tree/create
+  
+  let Tree/functor = ./Tree/functor
   
   let treeBase1
       : TreeBase Natural Natural
@@ -28,10 +31,17 @@
         , naturalTreeCreate 13 ([] : List (Tree Natural))
         ]
   
+  let tree1text : Tree Text = Tree/functor.map Natural Text Natural/show tree1
+  
   let foldTree1
       : TreeBase Natural Text → Text
       =   λ(t : TreeBase Natural Text)
         → ./Text/concat ([ "<", Natural/show t.data ] # t.subtrees # [ ">" ])
+  
+  let foldTree1text
+      : TreeBase Text Text → Text
+      =   λ(t : TreeBase Text Text)
+        → ./Text/concat ([ "<", t.data ] # t.subtrees # [ ">" ])
   
   in  { test01 =
           treeBase1
@@ -50,4 +60,6 @@
           tree1
       , test05 =
           tree1 Text foldTree1
+      , test06 =
+          tree1text Text foldTree1text
       }
