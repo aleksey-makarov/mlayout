@@ -1,0 +1,37 @@
+-- fold: ∀(a : Type) → ∀(ts : t a) → ∀(b : Type) → ∀(f : a → b → b) → ∀(z : b) → b
+
+let Foldable = ../Foldable/Type
+
+let List/foldable = ../List/foldable
+
+let Tree = ./Type
+
+let Function/compose = ../Function/compose
+
+let Function/id = ../Function/id
+
+let Function/flip = ../Function/flip
+
+in    { fold =
+            λ(a : Type)
+          → λ(ts : Tree a)
+          → λ(b : Type)
+          → λ(f : a → b → b)
+          → λ(z : b)
+          → let composeRev = Function/flip (b → b) (b → b) (b → b) (Function/compose b b b)
+            
+            let f =
+                    λ(n : { data : a, subtrees : List (b → b) })
+                  → composeRev
+                    (f n.data)
+                    ( List/foldable.fold
+                      (b → b)
+                      n.subtrees
+                      (b → b)
+                      composeRev
+                      (Function/id b)
+                    )
+            
+            in  ts (b → b) f z
+      }
+    : Foldable Tree

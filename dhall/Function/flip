@@ -1,0 +1,7 @@
+  λ(a : Type)
+→ λ(b : Type)
+→ λ(c : Type)
+→ λ(f : a → b → c)
+→ λ(y : b)
+→ λ(x : a)
+→ f x y

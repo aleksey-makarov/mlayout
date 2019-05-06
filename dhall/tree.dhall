@@ -14,24 +14,25 @@
   
   let Tree/foldable = ./Tree/foldable
   
+  let Foldable/foldMap = ./Foldable/foldMap
+  
+  let Function/id = ./Function/id
+  
+  let Function/flip = ./Function/flip
+  
+  let Text/monoid = ./Text/monoid
+  
   let treeBase1
       : TreeBase Natural Natural
       = { data = 42, subtrees = [ 12, 34 ] }
   
-  let naturalTreeCreate = Tree/create Natural
-  
   let tree1
       : Tree Natural
-      = naturalTreeCreate
-        1
-        [ naturalTreeCreate 11 ([] : List (Tree Natural))
-        , naturalTreeCreate
-          12
-          [ naturalTreeCreate 121 ([] : List (Tree Natural))
-          , naturalTreeCreate 122 ([] : List (Tree Natural))
-          ]
-        , naturalTreeCreate 13 ([] : List (Tree Natural))
-        ]
+      = let mk = Tree/create Natural
+        
+        let mkLeaf = λ(n : Natural) → mk n ([] : List (Tree Natural))
+        
+        in  mk 1 [ mkLeaf 11, mk 12 [ mkLeaf 121, mkLeaf 122 ], mkLeaf 13 ]
   
   let tree1text : Tree Text = Tree/functor.map Natural Text Natural/show tree1
   
@@ -65,5 +66,12 @@
       , test06 =
           tree1text Text foldTree1text
       , test07 =
-          Tree/foldable.fold
+          Foldable/foldMap
+          Text
+          Text/monoid
+          Tree
+          Tree/foldable
+          Text
+          (Function/id Text)
+          (Tree/functor.map Text Text (λ(x : Text) → "<" ++ x ++ ">") tree1text)
       }
