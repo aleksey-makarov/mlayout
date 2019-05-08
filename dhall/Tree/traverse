@@ -1,0 +1,39 @@
+let Applicative = ../Applicative/Type
+
+let Tree = ./Type
+
+let Tree/create = ./create
+
+let TreeBase = ../TreeBase/Type
+
+let Traversable/sequence = ../Traversable/sequence
+
+let List/traversable = ../List/traversable
+
+in    λ(f : Type → Type)
+    → λ(applicative : Applicative f)
+    → λ(a : Type)
+    → λ(b : Type)
+    → λ(g : a → f b)
+    → λ(ts : Tree a)
+    → let alg =
+              λ(d : TreeBase a (f (Tree b)))
+            → applicative.ap
+              (List (Tree b))
+              (Tree b)
+              ( applicative.ap
+                b
+                (List (Tree b) → Tree b)
+                (applicative.pure (b → List (Tree b) → Tree b) (Tree/create b))
+                (g d.data)
+              )
+              ( Traversable/sequence
+                List
+                List/traversable
+                f
+                applicative
+                (Tree b)
+                d.subtrees
+              )
+      
+      in  ts (f (Tree b)) alg

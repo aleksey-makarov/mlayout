@@ -14,6 +14,8 @@
   
   let Tree/foldable = ./Tree/foldable
   
+  let Tree/traverse = ./Tree/traverse
+  
   let Foldable/foldMap = ./Foldable/foldMap
   
   let Function/id = ./Function/id
@@ -74,4 +76,6 @@
           Text
           (Function/id Text)
           (Tree/functor.map Text Text (λ(x : Text) → "<" ++ x ++ ">") tree1text)
+      , test08 =
+          Tree/traverse
       }
