@@ -9,6 +9,6 @@ fi
 
 # echo "\"$src\""
 
-dhall format --inplace $src
+dhall format --inplace "$src"
 # dhall lint --inplace $src
-dhall --explain < $src
+dhall --explain < "$src"
