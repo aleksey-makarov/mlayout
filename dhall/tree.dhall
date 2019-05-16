@@ -14,7 +14,7 @@
   
   let Tree/foldable = ./Tree/foldable
   
-  let Tree/traverse = ./Tree/traverse
+  let Tree/traversable = ./Tree/traversable
   
   let Foldable/foldMap = ./Foldable/foldMap
   
@@ -48,6 +48,21 @@
       =   λ(t : TreeBase Text Text)
         → ./Text/concat ([ "<", t.data ] # t.subtrees # [ ">" ])
   
+  let enumerate =
+          λ(t : Type → Type)
+        → λ(traversable : Traversable t)
+        →   t Text
+          → t Text
+          → let addNumber =
+                  λ(txt : Text) → λ(n : Natural) → "${Natural/show n}:${txt}"
+            
+            let f = λ(s : Natural) → { state = s + 1, ret = "" }
+            
+            let fApplicative =
+                  { map = undefined, ap = undefined, pure = undefined }
+            
+            in  undefined
+  
   in  { test01 =
           treeBase1
       , test02 =
@@ -76,6 +91,8 @@
           Text
           (Function/id Text)
           (Tree/functor.map Text Text (λ(x : Text) → "<" ++ x ++ ">") tree1text)
+      , test08a =
+          enumerate List List/Traversable [ "one", "two", "three" ]
       , test08 =
-          Tree/traverse
+          enumerate Tree Tree/Traversable tree1text
       }
