@@ -24,6 +24,16 @@
   
   let Text/monoid = ./Text/monoid
   
+  let Traversable = ./Traversable/Type
+  
+  let List/traversable = ./List/traversable
+  
+  let State = ./State/Type
+  
+  let State/applicative = ./State/applicative
+  
+  let State/eval = ./State/eval
+  
   let treeBase1
       : TreeBase Natural Natural
       = { data = 42, subtrees = [ 12, 34 ] }
@@ -51,17 +61,24 @@
   let enumerate =
           λ(t : Type → Type)
         → λ(traversable : Traversable t)
-        →   t Text
-          → t Text
-          → let addNumber =
-                  λ(txt : Text) → λ(n : Natural) → "${Natural/show n}:${txt}"
-            
-            let f = λ(s : Natural) → { state = s + 1, ret = "" }
-            
-            let fApplicative =
-                  { map = undefined, ap = undefined, pure = undefined }
-            
-            in  undefined
+        → λ(container : t Text)
+        → let f =
+                  λ(txt : Text)
+                → λ(s : Natural)
+                → { val = "${Natural/show s}:${txt}", state = s + 1 }
+          
+          in  State/eval
+              Natural
+              (t Text)
+              ( traversable.traverse
+                (State Natural)
+                (State/applicative Natural)
+                Text
+                Text
+                f
+                container
+              )
+              0
   
   in  { test01 =
           treeBase1
@@ -92,7 +109,7 @@
           (Function/id Text)
           (Tree/functor.map Text Text (λ(x : Text) → "<" ++ x ++ ">") tree1text)
       , test08a =
-          enumerate List List/Traversable [ "one", "two", "three" ]
+          enumerate List List/traversable [ "one", "two", "three" ]
       , test08 =
-          enumerate Tree Tree/Traversable tree1text
+          enumerate Tree Tree/traversable tree1text
       }
