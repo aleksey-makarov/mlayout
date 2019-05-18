@@ -18,11 +18,15 @@
   
   let Tree/recite = ./Tree/recite
   
+  let Tree/destruct = ./Tree/destruct
+  
   let Foldable/foldMap = ./Foldable/foldMap
   
   let Function/id = ./Function/id
   
   let Function/flip = ./Function/flip
+  
+  let Function/compose = ./Function/compose
   
   let Text/monoid = ./Text/monoid
   
@@ -37,6 +41,8 @@
   let State/applicative = ./State/applicative
   
   let State/eval = ./State/eval
+  
+  let Text/concat = ./Text/concat
   
   let treeBase1
       : TreeBase Natural Natural
@@ -157,4 +163,21 @@
           (enumerate Tree Tree/traversable tree1text)
       , test09 =
           Tree/recite Text tree1text
+      , test10 =
+          let r = Tree/destruct Text tree1text
+          
+          let prettyPrintTextTree = Tree/prettyPrint Text (Function/id Text)
+          
+          let prettyPrintListOfTextTrees =
+                Function/compose
+                (List (Tree Text))
+                (List Text)
+                Text
+                (List/map (Tree Text) Text prettyPrintTextTree)
+                Text/concat
+          
+          in  ''
+              data : ${r.data}
+              subtrees:
+              ${prettyPrintListOfTextTrees r.subtrees}''
       }

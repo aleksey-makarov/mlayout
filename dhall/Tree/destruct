@@ -1,0 +1,26 @@
+let Tree = ./Type
+
+let Tree/create = ./create
+
+let TreeBase = ../TreeBase/Type
+
+let List/map = ../List/map
+
+in    λ(a : Type)
+    → λ(t : Tree a)
+    → let createFromTreeBase =
+            λ(tb : TreeBase a (Tree a)) → Tree/create a tb.data tb.subtrees
+      
+      in  t
+          (TreeBase a (Tree a))
+          (   λ(r : TreeBase a (TreeBase a (Tree a)))
+            → { data =
+                  r.data
+              , subtrees =
+                  List/map
+                  (TreeBase a (Tree a))
+                  (Tree a)
+                  createFromTreeBase
+                  r.subtrees
+              }
+          )
