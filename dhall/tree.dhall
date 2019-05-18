@@ -16,6 +16,8 @@
   
   let Tree/traversable = ./Tree/traversable
   
+  let Tree/recite = ./Tree/recite
+  
   let Foldable/foldMap = ./Foldable/foldMap
   
   let Function/id = ./Function/id
@@ -153,4 +155,6 @@
           Text
           (Function/id Text)
           (enumerate Tree Tree/traversable tree1text)
+      , test09 =
+          Tree/recite Text tree1text
       }
