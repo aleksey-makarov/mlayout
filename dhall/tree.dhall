@@ -28,6 +28,8 @@
   
   let List/traversable = ./List/traversable
   
+  let List/map = ./List/map
+  
   let State = ./State/Type
   
   let State/applicative = ./State/applicative
@@ -80,6 +82,42 @@
               )
               0
   
+  let Tree/prettyPrint =
+          λ(a : Type)
+        → λ(show : a → Text)
+        → λ(tree : Tree a)
+        → let f = λ(a : a) → show a ++ "\n"
+          
+          let showA = λ(t : Tree a) → Tree/functor.map a Text f t
+          
+          let foldTextTree =
+                  λ(t : Tree Text)
+                → Foldable/foldMap
+                  Text
+                  Text/monoid
+                  Tree
+                  Tree/foldable
+                  Text
+                  (Function/id Text)
+                  t
+          
+          let shift =
+                  λ(t : Tree Text)
+                → Tree/functor.map Text Text (λ(t : Text) → "  " ++ t) t
+          
+          let indent =
+                  λ(t : Tree Text)
+                → t
+                  (Tree Text)
+                  (   λ(n : TreeBase Text (Tree Text))
+                    → Tree/create
+                      Text
+                      n.data
+                      (List/map (Tree Text) (Tree Text) shift n.subtrees)
+                  )
+          
+          in  foldTextTree (indent (showA tree))
+  
   in  { test01 =
           treeBase1
       , test02 =
@@ -111,5 +149,8 @@
       , test08a =
           enumerate List List/traversable [ "one", "two", "three" ]
       , test08 =
-          enumerate Tree Tree/traversable tree1text
+          Tree/prettyPrint
+          Text
+          (Function/id Text)
+          (enumerate Tree Tree/traversable tree1text)
       }
