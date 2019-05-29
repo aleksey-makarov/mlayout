@@ -11,24 +11,19 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Tree
-import Data.Functor.Foldable
-
-mkTree :: a -> [Tree a] -> Tree a
-mkTree v l = embed (TreeF v l)
+-- import Data.Functor.Foldable
 
 printTree :: Show a => Tree a -> IO ()
 printTree = printTreeOffset 0
   where
     printTreeOffset :: Show a => Word -> Tree a -> IO ()
     printTreeOffset o t = do
-      let (TreeF v l) = project t
-      putStrLn $ (map (const ' ') [0 .. o]) ++ (show v)
-      _ <- mapM (printTreeOffset (o + 1)) l
-      return ()
+      putStrLn $ (map (const ' ') [0 .. o]) ++ (show $ treeData t)
+      mapM_ (printTreeOffset (o + 1)) (treeSubtrees t)
 
 myTree :: Tree Word
 myTree =
-  mkTree 0 [mkTree 1 [], mkTree 2 [mkTree 3 [], mkTree 4 []], mkTree 5 []]
+  tree 0 [tree 1 [], tree 2 [tree 3 [], tree 4 []], tree 5 []]
 
 main :: IO ()
 main = do
