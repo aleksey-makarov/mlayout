@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Tree where

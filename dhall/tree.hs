@@ -6,8 +6,6 @@
 -}
 
 {-# LANGUAGE TypeFamilies #-}
-
-
 {-# OPTIONS_GHC -Wall #-}
 
 import Tree
@@ -18,8 +16,9 @@ printTree = printTreeOffset 0
   where
     printTreeOffset :: Show a => Word -> Tree a -> IO ()
     printTreeOffset o t = do
-      putStrLn $ (map (const ' ') [0 .. o]) ++ (show $ treeData t)
-      mapM_ (printTreeOffset (o + 1)) (treeSubtrees t)
+      let tab = 3
+      putStrLn $ (map (const ' ') [1 .. tab * o]) ++ (show $ treeData t)
+      mapM_ (printTreeOffset $ o + 1) (treeSubtrees t)
 
 myTree :: Tree Word
 myTree =
