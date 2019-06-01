@@ -1,11 +1,13 @@
 #!/usr/bin/env stack
 {- stack script --resolver nightly-2019-05-29
+    --package dhall
     --package directory-tree
     --package recursion-schemes
     --package text
 -}
 
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE TypeFamilies #-}
@@ -17,6 +19,7 @@ import Control.Exception
 -- import Control.Monad
 import Data.Foldable
 import Data.Text
+import Dhall
 import System.Directory.Tree
 import System.Environment
 
@@ -25,6 +28,7 @@ import Tree
 printTree :: Show a => Tree a -> IO ()
 printTree = printTreeOffset 0
   where
+
     printTreeOffset :: Show a => Word -> Tree a -> IO ()
     printTreeOffset o t = do
       let tab = 3
@@ -35,8 +39,8 @@ myTree :: Tree Word
 myTree =
   tree 0 [tree 1 [], tree 2 [tree 3 [], tree 4 []], tree 5 []]
 
-data DirEntry = AFile Text | OtherFile Text deriving Show
-data DirInfo = DirInfo Text [DirEntry] deriving Show
+data DirEntry = AFile Text | OtherFile Text deriving (Show, Generic, Inject)
+data DirInfo = DirInfo { _name :: Text, _entries :: [DirEntry] } deriving (Show, Generic, Inject)
 
 data NotDirException = NotDirException deriving (Exception, Show, Eq, Ord)
 data CmdlineException = CmdlineException deriving (Exception, Show, Eq, Ord)
@@ -49,12 +53,15 @@ mkDirTree filePath= do
     File _ _ -> throwIO NotDirException
     Dir n l -> mkTree (pack n) l
     where
+
       mkTree :: Text -> [DirTree ()] -> IO (Tree DirInfo)
       mkTree n l = do
         (entries, subdirs) <- foldlM ff ([], []) l
         return $ tree (DirInfo n entries) subdirs
+
       f :: FilePath -> IO ()
       f _ = return ()
+
       ff :: ([DirEntry], [Tree DirInfo]) -> DirTree () -> IO ([DirEntry], [Tree DirInfo])
       ff (entries, subdirs) = \ case
         Failed _ e -> throwIO e
@@ -70,9 +77,17 @@ mkDirTree filePath= do
 
 main :: IO ()
 main = do
+
+  -- test 1
   printTree myTree
+
+  -- test 2
   getArgs >>= \ case
     n : _ -> do
       t <- mkDirTree n
       printTree t
     _ -> throwIO CmdlineException
+
+  -- test 3
+  f <- input auto "./TreeTest/formatDirInfo.dhall"
+  print $ (f :: DirInfo -> Text) $ DirInfo "dirName" []
