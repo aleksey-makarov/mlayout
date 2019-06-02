@@ -6,12 +6,14 @@ let DirInfo = { name : Text, dirEntries : List DirEntry }
 let formatDirEntry =
         λ(info : DirEntry)
       → merge
-        { aFile = λ(t : Text) → "!!!${t}", otherFile = λ(t : Text) → t }
+        { aFile = λ(t : Text) → "*${t}*", otherFile = λ(t : Text) → t }
         info
 
 let List/map = ../List/map
 
 let List/foldable = ../List/foldable
+
+let List/intersperse = ../List/intersperse
 
 let Text/monoid = ../Text/monoid
 
@@ -30,11 +32,6 @@ let entriesText =
         List/foldable
         Text
         (Function/id Text)
-        ( List/map
-          Text
-          Text
-          appendComma
-          (List/map DirEntry Text formatDirEntry l)
-        )
+        (List/intersperse Text ", " (List/map DirEntry Text formatDirEntry l))
 
 in  λ(info : DirInfo) → "- ${info.name}: ${entriesText info.dirEntries}"
