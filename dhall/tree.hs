@@ -18,6 +18,7 @@ import Prelude as P
 import Control.Exception
 -- import Control.Monad
 import Data.Foldable
+import Data.Functor.Contravariant
 import Data.Text
 import Dhall
 import System.Directory.Tree
@@ -35,15 +36,43 @@ printTree = printTreeOffset 0
       putStrLn $ (P.map (const ' ') [1 .. tab * o]) ++ (show $ treeData t)
       mapM_ (printTreeOffset $ o + 1) (treeSubtrees t)
 
+----------------------------------------------------
+
 myTree :: Tree Word
 myTree =
   tree 0 [tree 1 [], tree 2 [tree 3 [], tree 4 []], tree 5 []]
 
-data DirEntry = AFile Text | OtherFile Text deriving (Show, Generic, Inject)
-data DirInfo = DirInfo { _name :: Text, _entries :: [DirEntry] } deriving (Show, Generic, Inject)
+----------------------------------------------------
 
-data NotDirException = NotDirException deriving (Exception, Show, Eq, Ord)
-data CmdlineException = CmdlineException deriving (Exception, Show, Eq, Ord)
+data DirEntry = AFile Text | OtherFile Text deriving Show
+
+injectDirEntry :: InputType DirEntry
+injectDirEntry = adapt >$< inputUnion
+  (   (inputConstructor "aFile" :: UnionInputType Text)
+  >|< (inputConstructor "otherFile" :: UnionInputType Text)
+  )
+  where
+    adapt (AFile t) = Left t
+    adapt (OtherFile t) = Right t
+
+instance Inject DirEntry where
+  injectWith _ = injectDirEntry
+
+data DirInfo = DirInfo Text [DirEntry] deriving Show
+
+injectDirInfo :: InputType DirInfo
+injectDirInfo =
+  inputRecord
+    ( adapt >$< inputField "name"
+            >*< inputField "dirEntries"
+    )
+  where
+    adapt (DirInfo t es) = (t, es)
+
+instance Inject DirInfo where
+  injectWith _ = injectDirInfo
+
+----------------------------------------------------
 
 mkDirTree :: FilePath -> IO (Tree DirInfo)
 mkDirTree filePath= do
@@ -75,19 +104,28 @@ mkDirTree filePath= do
           t <- mkTree (pack n) l
           return (entries, t : subdirs)
 
+----------------------------------------------------
+
+data NotDirException = NotDirException deriving (Exception, Show, Eq, Ord)
+data CmdlineException = CmdlineException deriving (Exception, Show, Eq, Ord)
+
 main :: IO ()
 main = do
 
   -- test 1
   printTree myTree
 
-  -- test 2
-  getArgs >>= \ case
-    n : _ -> do
-      t <- mkDirTree n
-      printTree t
+  -- parse directory
+
+  t <- getArgs >>= \ case
+    n : _ -> mkDirTree n
     _ -> throwIO CmdlineException
+
+  -- test 2
+  printTree t
 
   -- test 3
   f <- input auto "./TreeTest/formatDirInfo.dhall"
-  print $ (f :: DirInfo -> Text) $ DirInfo "dirName" []
+
+  let (DirInfo n es) = treeData t
+  print $ (f :: DirInfo -> Text) $ DirInfo n es

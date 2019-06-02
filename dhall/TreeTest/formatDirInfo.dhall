@@ -1,8 +1,40 @@
--- data DirEntry = AFile Text | OtherFile Text deriving (Show, Generic, Inject)
--- data DirInfo = DirInfo Text [DirEntry] deriving (Show, Generic, Inject)
 
-let DirEntry = < AFile : { _1 : Text } | OtherFile : { _1 : Text } >
+let DirEntry = < aFile : Text | otherFile : Text >
 
-let DirInfo = { _name : Text, _entries : List DirEntry }
+let DirInfo = { name : Text, dirEntries : List DirEntry }
 
-in  λ(info : DirInfo) → "hi there"
+let formatDirEntry =
+        λ(info : DirEntry)
+      → merge
+        { aFile = λ(t : Text) → "!!!${t}", otherFile = λ(t : Text) → t }
+        info
+
+let List/map = ../List/map
+
+let List/foldable = ../List/foldable
+
+let Text/monoid = ../Text/monoid
+
+let Foldable/foldMap = ../Foldable/foldMap
+
+let Function/id = ../Function/id
+
+let appendComma = λ(a : Text) → "${a}, "
+
+let entriesText =
+        λ(l : List DirEntry)
+      → Foldable/foldMap
+        Text
+        Text/monoid
+        List
+        List/foldable
+        Text
+        (Function/id Text)
+        ( List/map
+          Text
+          Text
+          appendComma
+          (List/map DirEntry Text formatDirEntry l)
+        )
+
+in  λ(info : DirInfo) → "- ${info.name}: ${entriesText info.dirEntries}"
