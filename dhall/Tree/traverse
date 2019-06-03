@@ -1,14 +1,22 @@
+-- FIXME: simplify
+
 let Applicative = ../Applicative/Type
 
 let Tree = ./Type
 
-let Tree/create = ./create
+let Tree/steppable = ./steppable
 
 let TreeBase = ../TreeBase/Type
 
 let Traversable/sequence = ../Traversable/sequence
 
 let List/traversable = ../List/traversable
+
+let Tree/create =
+        λ(t : Type)
+      → λ(data : t)
+      → λ(children : List (Tree t))
+      → (Tree/steppable t).embed { data = data, subtrees = children }
 
 in    λ(f : Type → Type)
     → λ(applicative : Applicative f)

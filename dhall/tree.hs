@@ -112,20 +112,20 @@ data CmdlineException = CmdlineException deriving (Exception, Show, Eq, Ord)
 main :: IO ()
 main = do
 
-  -- test 1
-  printTree myTree
+  -- load dhall functions
+  f <- input auto "./TreeTest/formatDirInfo.dhall"
 
   -- parse directory
-
   t <- getArgs >>= \ case
     n : _ -> mkDirTree n
     _ -> throwIO CmdlineException
+
+  -- test 1
+  printTree myTree
 
   -- test 2
   printTree t
 
   -- test 3
-  f <- input auto "./TreeTest/formatDirInfo.dhall"
-
   let (DirInfo n es) = treeData t
   print $ (f :: DirInfo -> Text) $ DirInfo n es

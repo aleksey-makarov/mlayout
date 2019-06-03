@@ -8,8 +8,6 @@
   
   let Tree = ./Tree/Type
   
-  let Tree/create = ./Tree/create
-  
   let Tree/functor = ./Tree/functor
   
   let Tree/foldable = ./Tree/foldable
@@ -18,7 +16,7 @@
   
   let Tree/recite = ./Tree/recite
   
-  let Tree/destruct = ./Tree/destruct
+  let Tree/steppable = ./Tree/steppable
   
   let Foldable/foldMap = ./Foldable/foldMap
   
@@ -43,6 +41,14 @@
   let State/eval = ./State/eval
   
   let Text/concat = ./Text/concat
+  
+  let Tree/create =
+          λ(t : Type)
+        → λ(data : t)
+        → λ(children : List (Tree t))
+        → (Tree/steppable t).embed { data = data, subtrees = children }
+  
+  let Tree/destruct = λ(t : Type) → (Tree/steppable t).project
   
   let treeBase1
       : TreeBase Natural Natural
