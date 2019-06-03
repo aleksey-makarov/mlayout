@@ -1,8 +1,9 @@
--- FIXME: simplify
 
 let Applicative = ../Applicative/Type
 
 let Tree = ./Type
+
+let Tree/recursive = ./recursive
 
 let Tree/steppable = ./steppable
 
@@ -12,19 +13,19 @@ let Traversable/sequence = ../Traversable/sequence
 
 let List/traversable = ../List/traversable
 
-let Tree/create =
-        λ(t : Type)
-      → λ(data : t)
-      → λ(children : List (Tree t))
-      → (Tree/steppable t).embed { data = data, subtrees = children }
-
 in    λ(f : Type → Type)
     → λ(applicative : Applicative f)
     → λ(a : Type)
     → λ(b : Type)
     → λ(g : a → f b)
     → λ(ts : Tree a)
-    → let alg =
+    → let create
+          : b → List (Tree b) → Tree b
+          =   λ(d : b)
+            → λ(l : List (Tree b))
+            → (Tree/steppable b).embed { data = d, subtrees = l }
+      
+      let alg =
               λ(d : TreeBase a (f (Tree b)))
             → applicative.ap
               (List (Tree b))
@@ -32,7 +33,7 @@ in    λ(f : Type → Type)
               ( applicative.ap
                 b
                 (List (Tree b) → Tree b)
-                (applicative.pure (b → List (Tree b) → Tree b) (Tree/create b))
+                (applicative.pure (b → List (Tree b) → Tree b) create)
                 (g d.data)
               )
               ( Traversable/sequence
@@ -44,4 +45,4 @@ in    λ(f : Type → Type)
                 d.subtrees
               )
       
-      in  ts (f (Tree b)) alg
+      in  (Tree/recursive a).cata (f (Tree b)) alg ts
