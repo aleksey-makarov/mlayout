@@ -18,6 +18,8 @@
   
   let Tree/steppable = ./Tree/steppable
   
+  let Tree/recursive = ./Tree/recursive
+  
   let Foldable/foldMap = ./Foldable/foldMap
   
   let Function/id = ./Function/id
@@ -149,6 +151,8 @@
           tree1
       , test05 =
           tree1 Text foldTree1
+      , test05rec =
+          (Tree/recursive Natural).cata Text foldTree1 tree1
       , test06 =
           tree1text Text foldTree1text
       , test07 =

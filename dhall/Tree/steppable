@@ -1,0 +1,13 @@
+let Steppable = ../Steppable/Type
+
+let Mu/steppable = ../Mu/steppable
+
+let Tree = ./Type
+
+let TreeBase = ../TreeBase/Type
+
+let TreeBase/functor = ../TreeBase/functor
+
+in    λ(a : Type)
+    →   Mu/steppable (TreeBase a) (TreeBase/functor a)
+      : Steppable (Tree a) (TreeBase a)

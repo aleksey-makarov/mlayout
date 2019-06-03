@@ -1,0 +1,11 @@
+let Recursive = ../Recursive/Type
+
+let Mu/recursive = ../Mu/recursive
+
+let Tree = ./Type
+
+let TreeBase = ../TreeBase/Type
+
+let TreeBase/functor = ../TreeBase/functor
+
+in  λ(a : Type) → Mu/recursive (TreeBase a) : Recursive (Tree a) (TreeBase a)
