@@ -21,8 +21,6 @@ let Foldable/foldMap = ../Foldable/foldMap
 
 let Function/id = ../Function/id
 
-let appendComma = λ(a : Text) → "${a}, "
-
 let entriesText =
         λ(l : List DirEntry)
       → Foldable/foldMap

@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver nightly-2019-05-29
+    --package containers
     --package dhall
     --package directory-tree
     --package recursion-schemes
@@ -11,6 +12,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 
 import Prelude as P
@@ -20,27 +22,20 @@ import Control.Exception
 import Data.Foldable
 import Data.Functor.Contravariant
 import Data.Text
+import Data.Tree
 import Dhall
 import System.Directory.Tree
 import System.Environment
-
-import Tree
 
 printTree :: Show a => Tree a -> IO ()
 printTree = printTreeOffset 0
   where
 
     printTreeOffset :: Show a => Word -> Tree a -> IO ()
-    printTreeOffset o t = do
+    printTreeOffset o (Node d f) = do
       let tab = 3
-      putStrLn $ (P.map (const ' ') [1 .. tab * o]) ++ (show $ treeData t)
-      mapM_ (printTreeOffset $ o + 1) (treeSubtrees t)
-
-----------------------------------------------------
-
-myTree :: Tree Word
-myTree =
-  tree 0 [tree 1 [], tree 2 [tree 3 [], tree 4 []], tree 5 []]
+      putStrLn $ (P.map (const ' ') [1 .. tab * o]) ++ (show d)
+      mapM_ (printTreeOffset $ o + 1) f
 
 ----------------------------------------------------
 
@@ -86,7 +81,7 @@ mkDirTree filePath= do
       mkTree :: Text -> [DirTree ()] -> IO (Tree DirInfo)
       mkTree n l = do
         (entries, subdirs) <- foldlM ff ([], []) l
-        return $ tree (DirInfo n entries) subdirs
+        return $ Node (DirInfo n entries) subdirs
 
       f :: FilePath -> IO ()
       f _ = return ()
@@ -113,7 +108,7 @@ main :: IO ()
 main = do
 
   -- load dhall functions
-  f <- input auto "./TreeTest/formatDirInfo.dhall"
+  (f :: DirInfo -> Text) <- input auto "./TreeTest/formatDirInfo.dhall"
 
   -- parse directory
   t <- getArgs >>= \ case
@@ -121,11 +116,8 @@ main = do
     _ -> throwIO CmdlineException
 
   -- test 1
-  printTree myTree
-
-  -- test 2
   printTree t
 
-  -- test 3
-  let (DirInfo n es) = treeData t
-  print $ (f :: DirInfo -> Text) $ DirInfo n es
+  -- test 2
+  let Node d _ = t
+  print $ f d
