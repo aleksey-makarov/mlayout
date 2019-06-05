@@ -24,11 +24,12 @@ import Control.Exception
 import Data.Foldable
 import Data.Functor.Contravariant
 import Data.Functor.Foldable
+import Data.Sequence as DS
 import Data.Text
 import Data.Tree
 import Dhall as D
 import Dhall.Core as DC
-import Dhall.Map
+import Dhall.Map as DM
 import Dhall.Parser
 import Dhall.TypeCheck
 import System.Directory.Tree as DirT
@@ -79,28 +80,27 @@ instance Inject DirInfo where
 --    → λ(children : List (Tree t))
 --    → λ(a : Type)
 --    → λ(f : { data : t, subtrees : List a } → a)
---    → f { data = data, subtrees = List/map (Tree t) a ( λ(t : Tree t) → t a f) children }
+--    → f { data = data, subtrees = List/map (Tree t) a (λ(tree : Tree t) → tree a f) children }
 
 mkTree :: Expr Src X -> [Expr Src X] -> Expr Src X
 mkTree d children = Lam "t" (Const DC.Type) $
                     Lam "data" (v "t") $
                     Lam "children" (App List (v "Tree")) $
                     Lam "a" (Const DC.Type) $
-                    Lam "f" (Pi "_" (Record $ fromList [("data", v "t"), ("subtrees", App List (v "a"))]) (v "a")) $
-                    App (v "f") (RecordLit $ fromList [("data", d), ("subtrees", s)])
+                    Lam "f" (Pi "_" (Record $ DM.fromList [("data", v "t"), ("subtrees", App List (v "a"))]) (v "a")) $
+                    App (v "f") (RecordLit $ DM.fromList [("data", d), ("subtrees", s)])
   where
-    v n   = Var (V n 0)
-    s     = App (App (App (App (v "List/Map") (App (v "Tree") (v "t"))) (v "a")) f) (undefined children)
-    f     = undefined
+    v n = Var (V n 0)
+    f   = Lam "tree" (App (v "Tree") (v "t")) (App (App (v "tree") (v "a")) (v "f"))
+    s   = App (App (App (App (v "List/Map") (App (v "Tree") (v "t"))) (v "a")) f) c'
+    c'  = ListLit (Just (App List (App (v "Tree") (v "a")))) (DS.fromList children)
 
 instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
         embed (Node d ns) = mkTree (embedIn d) (fmap embed ns)
-
-        declared = undefined -- Pi "t" (Const D.Type) undefined
-
-        InputType embedIn declaredIn = (injectWith options) :: InputType d -- FIXME: delete type declaration
+        declared = undefined
+        InputType embedIn declaredIn = injectWith options
 
 -- data TreeF d a = TreeF { rootLabelF :: d, subForestF :: [a] } deriving (Functor, Show)
 -- type MuTree d = Mu (TreeF d)
