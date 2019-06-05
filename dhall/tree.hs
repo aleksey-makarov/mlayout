@@ -8,10 +8,12 @@
 -}
 
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -21,10 +23,15 @@ import Control.Exception
 -- import Control.Monad
 import Data.Foldable
 import Data.Functor.Contravariant
+import Data.Functor.Foldable
 import Data.Text
 import Data.Tree
-import Dhall
-import System.Directory.Tree
+import Dhall as D
+import Dhall.Core as DC
+import Dhall.Map
+import Dhall.Parser
+import Dhall.TypeCheck
+import System.Directory.Tree as DirT
 import System.Environment
 
 printTree :: Show a => Tree a -> IO ()
@@ -67,6 +74,37 @@ injectDirInfo =
 instance Inject DirInfo where
   injectWith _ = injectDirInfo
 
+--      λ(t : Type)
+--    → λ(data : t)
+--    → λ(children : List (Tree t))
+--    → λ(a : Type)
+--    → λ(f : { data : t, subtrees : List a } → a)
+--    → f { data = data, subtrees = List/map (Tree t) a ( λ(t : Tree t) → t a f) children }
+
+mkTree :: Expr Src X -> [Expr Src X] -> Expr Src X
+mkTree d children = Lam "t" (Const DC.Type) $
+                    Lam "data" (v "t") $
+                    Lam "children" (App List (v "Tree")) $
+                    Lam "a" (Const DC.Type) $
+                    Lam "f" (Pi "_" (Record $ fromList [("data", v "t"), ("subtrees", App List (v "a"))]) (v "a")) $
+                    App (v "f") (RecordLit $ fromList [("data", d), ("subtrees", s)])
+  where
+    v n   = Var (V n 0)
+    s     = App (App (App (App (v "List/Map") (App (v "Tree") (v "t"))) (v "a")) f) (undefined children)
+    f     = undefined
+
+instance Inject d => Inject (Tree d) where
+    injectWith options = InputType {..}
+      where
+        embed (Node d ns) = mkTree (embedIn d) (fmap embed ns)
+
+        declared = undefined -- Pi "t" (Const D.Type) undefined
+
+        InputType embedIn declaredIn = (injectWith options) :: InputType d -- FIXME: delete type declaration
+
+-- data TreeF d a = TreeF { rootLabelF :: d, subForestF :: [a] } deriving (Functor, Show)
+-- type MuTree d = Mu (TreeF d)
+
 ----------------------------------------------------
 
 mkDirTree :: FilePath -> IO (Tree DirInfo)
@@ -74,7 +112,7 @@ mkDirTree filePath= do
   _ :/ t <- readDirectoryWith f filePath
   case t of
     Failed _ e -> throwIO e
-    File _ _ -> throwIO NotDirException
+    DirT.File _ _ -> throwIO NotDirException
     Dir n l -> mkTree (pack n) l
     where
 
@@ -89,7 +127,7 @@ mkDirTree filePath= do
       ff :: ([DirEntry], [Tree DirInfo]) -> DirTree () -> IO ([DirEntry], [Tree DirInfo])
       ff (entries, subdirs) = \ case
         Failed _ e -> throwIO e
-        File n _ ->
+        DirT.File n _ ->
           let e = case n of
                     'a' : _ -> AFile $ pack n
                     'A' : _ -> AFile $ pack n
@@ -108,7 +146,7 @@ main :: IO ()
 main = do
 
   -- load dhall functions
-  (f :: DirInfo -> Text) <- input auto "./TreeTest/formatDirInfo.dhall"
+  (f :: DirInfo -> Text) <- D.input auto "./TreeTest/formatDirInfo.dhall"
 
   -- parse directory
   t <- getArgs >>= \ case
