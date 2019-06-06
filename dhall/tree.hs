@@ -99,6 +99,7 @@ instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
         embed (Node d ns) = mkTree (embedIn d) (fmap embed ns)
+        -- ∀(a : Type) → ({ data : t, subtrees : List a } -> a) -> a
         declared = undefined
         InputType embedIn declaredIn = injectWith options
 
