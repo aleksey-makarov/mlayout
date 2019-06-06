@@ -86,18 +86,19 @@ instance Inject DirInfo where
 --    → λ(f : { data : t, subtrees : List a } → a)
 --    → f { data = data, subtrees = List/map (Tree t) a (λ(tree : Tree t) → tree a f) children }
 
-treeToDhall :: Expr Src X -> [Expr Src X] -> Expr Src X
-treeToDhall d children = Lam "t" (Const DC.Type) $
-                    Lam "data" (v "t") $
-                    Lam "children" (App List (v "Tree")) $
+-- TODO: rewrite App as infix
+
+treeToDhall :: Expr Src X -> Expr Src X -> [Expr Src X] -> Expr Src X
+treeToDhall dtype d children = Lam "data" dtype $
+                    Lam "children" (App List (App (v "Tree") dtype)) $
                     Lam "a" (Const DC.Type) $
-                    Lam "f" (Pi "_" (Record $ DM.fromList [("data", v "t"), ("subtrees", App List (v "a"))]) (v "a")) $
+                    Lam "f" (Pi "_" (Record $ DM.fromList [("data", dtype), ("subtrees", App List (v "a"))]) (v "a")) $
                     App (v "f") (RecordLit $ DM.fromList [("data", d), ("subtrees", s)])
   where
     v n = Var (V n 0)
-    f   = Lam "tree" (App (v "Tree") (v "t")) (App (App (v "tree") (v "a")) (v "f"))
-    s   = App (App (App (App (v "List/Map") (App (v "Tree") (v "t"))) (v "a")) f) c'
-    c'  = ListLit (Just (App List (App (v "Tree") (v "a")))) (DS.fromList children)
+    f   = Lam "tree" (App (v "Tree") dtype) (App (App (v "tree") (v "a")) (v "f"))
+    s   = App (App (App (App (v "List/map") (App (v "Tree") dtype)) (v "a")) f) c'
+    c'  = ListLit (Just (App (v "Tree") dtype)) (DS.fromList children)
 
 appendLets :: Expr Src X -> Expr Src X
 appendLets e = Let (LNE.fromList [Binding "Tree" Nothing treeType, Binding "List/map" Nothing listMap]) e
@@ -109,7 +110,7 @@ instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
         embed t = appendLets $ embed' t
-        embed' (Node d ns) = treeToDhall (embedIn d) (fmap embed' ns)
+        embed' (Node d ns) = treeToDhall declaredIn (embedIn d) (fmap embed' ns)
         -- ∀(a : Type) → ({ data : t, subtrees : List a } -> a) -> a
         declared = Pi "a" (Const DC.Type) $ Pi "_" (Pi "_" (Record $ DM.fromList [("data", declaredIn), ("subtrees", (App List (v "a")))]) (v "a")) (v "a")
         InputType embedIn declaredIn = injectWith options
@@ -174,8 +175,25 @@ main = do
   let Node d _ = t
   print $ f d
 
+  -- test 3'
+  let tn = Node (2 :: Natural) [Node 3 []]
+  putStrLn "-------------------------------"
+  putStrLn "expression: "
+  print $ prettyExpr $ embed (injectWith defaultInterpretOptions) tn
+  putStrLn "-------------------------------"
+  putStrLn "its type:"
+  print $ prettyExpr <$> (typeOf $ embed (injectWith defaultInterpretOptions) tn)
+  putStrLn "-------------------------------"
+  putStrLn "normalized:"
+  print $ prettyExpr $ normalize $ embed (injectWith defaultInterpretOptions) tn
+
+{-
   -- test 3
---  print $ prettyExpr $ embed (injectWith defaultInterpretOptions) t
+  putStrLn "-------------------------------"
+  putStrLn "directory tree:"
+  print $ prettyExpr <$> (typeOf $ embed (injectWith defaultInterpretOptions) t)
+  putStrLn "-------------------------------"
+-}
 
   --test 4
-  print $ f2 t
+  -- print $ f2 t
