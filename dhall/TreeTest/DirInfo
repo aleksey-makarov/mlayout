@@ -1,2 +1,1 @@
-let DirEntry = ./DirEntry in
-{ name : Text, dirEntries : List DirEntry }
+let DirEntry = ./DirEntry in { name : Text, dirEntries : List DirEntry }

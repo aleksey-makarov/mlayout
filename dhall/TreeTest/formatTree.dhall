@@ -4,4 +4,4 @@ let DirInfo = ./DirInfo
 
 let Tree = ../Tree/Type
 
-in \(t : Tree DirInfo) -> "lalala"
+in  λ(t : Tree DirInfo) → "lalala"
