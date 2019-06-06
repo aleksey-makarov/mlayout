@@ -15,6 +15,7 @@
 -- {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wall #-}
 
 import Prelude as P
@@ -23,7 +24,8 @@ import Control.Exception
 -- import Control.Monad
 import Data.Foldable
 import Data.Functor.Contravariant
-import Data.Functor.Foldable
+-- import Data.Functor.Foldable
+import Data.List.NonEmpty as LNE
 import Data.Sequence as DS
 import Data.Text
 import Data.Tree
@@ -31,6 +33,8 @@ import Dhall as D
 import Dhall.Core as DC
 import Dhall.Map as DM
 import Dhall.Parser
+import Dhall.Pretty
+import Dhall.TH
 import Dhall.TypeCheck
 import System.Directory.Tree as DirT
 import System.Environment
@@ -82,8 +86,8 @@ instance Inject DirInfo where
 --    → λ(f : { data : t, subtrees : List a } → a)
 --    → f { data = data, subtrees = List/map (Tree t) a (λ(tree : Tree t) → tree a f) children }
 
-mkTree :: Expr Src X -> [Expr Src X] -> Expr Src X
-mkTree d children = Lam "t" (Const DC.Type) $
+treeToDhall :: Expr Src X -> [Expr Src X] -> Expr Src X
+treeToDhall d children = Lam "t" (Const DC.Type) $
                     Lam "data" (v "t") $
                     Lam "children" (App List (v "Tree")) $
                     Lam "a" (Const DC.Type) $
@@ -95,13 +99,21 @@ mkTree d children = Lam "t" (Const DC.Type) $
     s   = App (App (App (App (v "List/Map") (App (v "Tree") (v "t"))) (v "a")) f) c'
     c'  = ListLit (Just (App List (App (v "Tree") (v "a")))) (DS.fromList children)
 
+appendLets :: Expr Src X -> Expr Src X
+appendLets e = Let (LNE.fromList [Binding "Tree" Nothing treeType, Binding "List/map" Nothing listMap]) e
+  where
+    treeType = $(staticDhallExpression "./Tree/Type")
+    listMap = $(staticDhallExpression "./List/map")
+
 instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
-        embed (Node d ns) = mkTree (embedIn d) (fmap embed ns)
+        embed t = appendLets $ embed' t
+        embed' (Node d ns) = treeToDhall (embedIn d) (fmap embed' ns)
         -- ∀(a : Type) → ({ data : t, subtrees : List a } -> a) -> a
-        declared = undefined
+        declared = Pi "a" (Const DC.Type) $ Pi "_" (Pi "_" (Record $ DM.fromList [("data", declaredIn), ("subtrees", (App List (v "a")))]) (v "a")) (v "a")
         InputType embedIn declaredIn = injectWith options
+        v n = Var (V n 0)
 
 -- data TreeF d a = TreeF { rootLabelF :: d, subForestF :: [a] } deriving (Functor, Show)
 -- type MuTree d = Mu (TreeF d)
@@ -148,6 +160,7 @@ main = do
 
   -- load dhall functions
   (f :: DirInfo -> Text) <- D.input auto "./TreeTest/formatDirInfo.dhall"
+  (f2 :: Tree DirInfo -> Text) <- D.input auto "./TreeTest/formatTree.dhall"
 
   -- parse directory
   t <- getArgs >>= \ case
@@ -160,3 +173,9 @@ main = do
   -- test 2
   let Node d _ = t
   print $ f d
+
+  -- test 3
+--  print $ prettyExpr $ embed (injectWith defaultInterpretOptions) t
+
+  --test 4
+  print $ f2 t

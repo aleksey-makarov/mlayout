@@ -1,7 +1,7 @@
 
-let DirEntry = < aFile : Text | otherFile : Text >
+let DirEntry = ./DirEntry
 
-let DirInfo = { name : Text, dirEntries : List DirEntry }
+let DirInfo = ./DirInfo
 
 let formatDirEntry =
         λ(info : DirEntry)
