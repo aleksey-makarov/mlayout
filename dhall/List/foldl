@@ -1,0 +1,14 @@
+let Function/id = ../Function/id
+
+in    λ(A : Type)
+    → λ(l : List A)
+    → λ(Out : Type)
+    → λ(f : Out → A → Out)
+    → λ(init : Out)
+    → let F = Out → Out
+      
+      let fr : A → F → F = λ(a : A) → λ(fin : F) → λ(out : Out) → fin (f out a)
+      
+      let f = List/fold A l F fr (Function/id Out)
+      
+      in  f init
