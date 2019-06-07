@@ -1,5 +1,3 @@
-let DirEntry = ./DirEntry
-
 let DirInfo = ./DirInfo
 
 let Foldable/foldMap = ../Foldable/foldMap
@@ -16,11 +14,15 @@ let NonEmptyList/functor = ../NonEmptyList/functor
 
 let NonEmptyList/toList = ../NonEmptyList/toList
 
+let NonEmptyList/last = ../NonEmptyList/last
+
 let Text/monoid = ../Text/monoid
 
 let Tree = ../Tree/Type
 
 let Tree/recite = ../Tree/recite
+
+let entriesText = ./entriesText
 
 in    λ(tree : Tree DirInfo)
     → let printOneDir =
@@ -45,6 +47,8 @@ in    λ(tree : Tree DirInfo)
                       )
                     )
                   )
+              ++  ": "
+              ++  entriesText (NonEmptyList/last DirInfo dil).dirEntries
               ++  ''
                   
                   ''

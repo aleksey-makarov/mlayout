@@ -105,6 +105,7 @@ appendLets e = Let (LNE.fromList [Binding "Tree" Nothing treeType, Binding "List
 instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
+        -- FIXME: add normalize
         embed t = appendLets $ embed' t
         embed' (Node d ns) = treeToDhall declaredIn (embedIn d) (fmap embed' ns)
         -- ∀(a : Type) → ({ data : t, subtrees : List a } -> a) -> a

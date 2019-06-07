@@ -3,11 +3,7 @@ let DirEntry = ./DirEntry
 
 let DirInfo = ./DirInfo
 
-let formatDirEntry =
-        λ(info : DirEntry)
-      → merge
-        { aFile = λ(t : Text) → "*${t}*", otherFile = λ(t : Text) → t }
-        info
+let formatDirEntry = ./formatDirEntry
 
 let List/map = ../List/map
 
