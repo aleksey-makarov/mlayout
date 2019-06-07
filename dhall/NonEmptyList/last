@@ -1,0 +1,5 @@
+let Function/id = ../Function/id
+
+in    λ(a : Type)
+    → λ(nel : ./Type a)
+    → Optional/fold a (List/last a nel.tail) a (Function/id a) nel.head
