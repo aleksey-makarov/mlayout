@@ -199,4 +199,4 @@ main = do
   --test 4
   putStrLn "-------------------------------"
   putStrLn "directory tree formatted with script:"
-  print $ f2 t
+  putStrLn $ unpack $ f2 t
