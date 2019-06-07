@@ -1,16 +1,18 @@
 
-  λ(a : Type)
-→ λ(i : a)
-→ λ(l : List a)
-→ let List/steppable = ./steppable
-  
-  in  merge
-      { Both =
-            λ(both : { head : a, tail : List a })
-          → let f = λ(x : a) → λ(xs : List a) → [ x, i ] # xs
-            
-            in  List/fold a both.tail (List a) f [ both.head ]
-      , Neither =
-          λ(_ : {}) → [] : List a
-      }
-      ((List/steppable a).project l)
+let List/foldl = ./foldl
+
+in    λ(a : Type)
+    → λ(i : a)
+    → λ(l : List a)
+    → let List/steppable = ./steppable
+      
+      in  merge
+          { Both =
+                λ(both : { head : a, tail : List a })
+              → let f = λ(xs : List a) → λ(x : a) → xs # [ i, x ]
+                
+                in  List/foldl a both.tail (List a) f [ both.head ]
+          , Neither =
+              λ(_ : {}) → [] : List a
+          }
+          ((List/steppable a).project l)
