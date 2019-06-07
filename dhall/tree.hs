@@ -79,18 +79,14 @@ injectDirInfo =
 instance Inject DirInfo where
   injectWith _ = injectDirInfo
 
---      λ(t : Type)
---    → λ(data : t)
---    → λ(children : List (Tree t))
 --    → λ(a : Type)
---    → λ(f : { data : t, subtrees : List a } → a)
---    → f { data = data, subtrees = List/map (Tree t) a (λ(tree : Tree t) → tree a f) children }
+--    → λ(f : { data : dtype, subtrees : List a } → a)
+--    → f { data = d, subtrees = List/map (Tree dtype) a (λ(tree : Tree dtype) → tree a f) children }
 
 -- TODO: rewrite App as infix
 
 treeToDhall :: Expr Src X -> Expr Src X -> [Expr Src X] -> Expr Src X
-treeToDhall dtype d children = Lam "data" dtype $
-                    Lam "children" (App List (App (v "Tree") dtype)) $
+treeToDhall dtype d children =
                     Lam "a" (Const DC.Type) $
                     Lam "f" (Pi "_" (Record $ DM.fromList [("data", dtype), ("subtrees", App List (v "a"))]) (v "a")) $
                     App (v "f") (RecordLit $ DM.fromList [("data", d), ("subtrees", s)])
@@ -177,23 +173,30 @@ main = do
 
   -- test 3'
   let tn = Node (2 :: Natural) [Node 3 []]
+  let tne = embed (injectWith defaultInterpretOptions) tn
   putStrLn "-------------------------------"
   putStrLn "expression: "
-  print $ prettyExpr $ embed (injectWith defaultInterpretOptions) tn
+  print $ prettyExpr tne
   putStrLn "-------------------------------"
   putStrLn "its type:"
-  print $ prettyExpr <$> (typeOf $ embed (injectWith defaultInterpretOptions) tn)
+  print $ prettyExpr <$> (typeOf tne)
   putStrLn "-------------------------------"
   putStrLn "normalized:"
-  print $ prettyExpr $ normalize $ embed (injectWith defaultInterpretOptions) tn
+  print $ prettyExpr $ normalize tne
 
-{-
   -- test 3
+  let te = embed (injectWith defaultInterpretOptions) t
   putStrLn "-------------------------------"
-  putStrLn "directory tree:"
-  print $ prettyExpr <$> (typeOf $ embed (injectWith defaultInterpretOptions) t)
+  putStrLn "directory tree expression: "
+  print $ prettyExpr te
   putStrLn "-------------------------------"
--}
+  putStrLn "directory tree type:"
+  print $ prettyExpr <$> (typeOf te)
+  putStrLn "-------------------------------"
+  putStrLn "directory tree normalized:"
+  print $ prettyExpr $ normalize te
 
   --test 4
-  -- print $ f2 t
+  putStrLn "-------------------------------"
+  putStrLn "directory tree formatted with script:"
+  print $ f2 t
