@@ -10,19 +10,17 @@ import           Data.Aeson
 import           Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy as BL
 import           Data.Text
-import           Data.Text.Lazy.Encoding
+-- import           Data.Text.Lazy.Encoding
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
-import           Data.Time.LocalTime
-import           Data.Time.RFC822
+-- import           Data.Time.LocalTime
+-- import           Data.Time.RFC822
 import qualified MLayout.Parser as ML
 import           Options.Applicative
 import           System.Exit
 import           System.FilePath
 import           System.Posix.Files
 import           System.IO
-import           Text.EDE               as EDE hiding (failure, parseFile)
-import qualified Text.EDE               as EDE
 import qualified Text.PrettyPrint.ANSI.Leijen as TPP
 import qualified Text.Trifecta.Parser as TRI
 import qualified Text.Trifecta.Result as TRI
@@ -118,7 +116,7 @@ opts = info (helper <*> optsParser)
     <> header "mlayout - transform memory layout files"
     <> progDesc
         (  "Transform input files in MLayout format into pretty printed MLayout files, "
-        ++ "JSON files, or TEMPLATE files processed by EDE engine. "
+        ++ "JSON files, or TEMPLATE files processed by dhall engine. "
         ++ "The utility reads INPUT_FILE, processes it and outputs the result to OUTPUT_FILE_OR_DIR. "
 --        ++ "If OUTPUT_DIR is specified, all FILES will be processed at one pass and written to files in that directory. "
 --        ++ "The resulting files will have the same basename with suffix \'.mlayout\' changed to SUFFIX."
@@ -166,37 +164,18 @@ mlayout MLayoutOptions {..} = do
     -- print outputTypeOpt
     -- print inOutOpt
 
-    let
-        mkIdString :: IO Text
-        mkIdString = formatTimeRFC822 <$> getZonedTime
+    -- let
+    --    mkIdString :: IO Text
+    --    mkIdString = formatTimeRFC822 <$> getZonedTime
 
-    idString <- maybe mkIdString return idStringOpt
+    -- idString <- maybe mkIdString return idStringOpt
 
     let
         prepareOuputAction :: IO (FilePath -> WithFile -> [ML.MLayout] -> IO ())
         prepareOuputAction = case outputTypeOpt of
             Pretty                  -> return (\ _ -> prettyPrint)
             JSON                    -> return (\ _ -> printJSON)
-            Format templateFileName -> do
-                res <- EDE.parseFile templateFileName
-                case res of
-                    EDE.Success template -> return applyTemplate
-                        where
-                            applyTemplate :: ToJSON j => FilePath -> WithFile -> [j] -> IO ()
-                            applyTemplate inFile withFile' j = do
-                                let
-                                    obj = fromPairs [ "id"       .= String idString
-                                                    , "filename" .= (String $ pack $ takeBaseName inFile)
-                                                    , "data"     .= toJSON j
-                                                    ]
-                                case render template obj of
-                                    EDE.Success txt -> withFile' $ \ h -> BL.hPut h $ encodeUtf8 txt
-                                    EDE.Failure doc -> do
-                                        liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
-                                        exitWith $ ExitFailure 1
-                    EDE.Failure doc -> do
-                        liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ doc <> TPP.linebreak
-                        exitWith $ ExitFailure 1
+            Format _templateFileName -> undefined
 
         parseFile :: FilePath -> IO [ML.MLayout]
         parseFile inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case

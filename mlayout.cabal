@@ -51,7 +51,6 @@ executable mlayout
                        , aeson-pretty
                        , ansi-wl-pprint
                        , bytestring
-                       , ede
                        , mlayout
                        , filepath
                        , foldl

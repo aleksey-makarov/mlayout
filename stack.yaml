@@ -2,7 +2,3 @@ resolver: nightly-2019-05-29
 
 packages:
   - .
-
-extra-deps:
-- github: aleksey-makarov/ede
-  commit: f98f83b778f1f8d87beeaecff98da99b82053445
