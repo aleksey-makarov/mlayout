@@ -36,29 +36,37 @@ import           Text.Trifecta.Result
 import qualified Data.Text.Prettyprint.Doc as PPD
 import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 
-data StartSet' s
-    = StartSet
-        { _startPositions :: NonEmpty (s, Text)
-        }
-    | StartSetPeriodic
-        { _positionFirst :: s
-        , _n             :: Word -- TODO: >= 2
-        , _step          :: s
-        }
-    | StartSet1
-        { _position :: s
+data Width = W8 | W16 | W32 | W64 | W128 | W Word
+
+data Location w
+    = FromTo (Maybe Word) (Maybe Word)                   -- [a:b], a is the first, b is the maximum, not upper bound
+    | WordNext w                                         -- [%32@], [5@]
+    | Word (Maybe w) Word ParsedStartSet                 -- [@0x11], [7@0x22], [%16@3]
+    | Fields (Maybe w) (NonEmpty [((Maybe Word), Text)]) -- [@{A, B, C}], [%12@{12 A, 34 B}]
+    | Periodic (Maybe w) Word (Maybe Word)               -- [3@2 +4]
+    deriving Show
+
+type MLocation = Location Width
+type BLocation = Location Word
+
+data ValueItem = ValueItem Integer Text Text deriving Show   -- = value, name, doc
+
+data Item w d
+    = Item
+        {   _location :: Location w
+        ,   _name  :: Text
+        ,   _doc   :: Text
+        ,   _body  :: d
         }
     deriving Show
 
-type StartSet = StartSet' Word
-type ParsedStartSet = StartSet' (Maybe Word)
+type BData = [ValueItem]
 
--- TODO: [a:]
-data ParsedLocation
-    = FromTo (Maybe Word) Word -- this is maximum, not upper bound
-    | Word Word ParsedStartSet -- width, at
-    | WidthStart (Maybe Word) ParsedStartSet
-    deriving Show
+type BLayout = Tree (Item BLocation BData)
+
+type MData = [BLayout]
+
+type MLayout = Tree (Item MLocation MData)
 
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
 throw f = runFormat f $ raiseErr . failed . TL.unpack . TLB.toLazyText
@@ -96,20 +104,23 @@ bitmapLocationInnerP = do
     firstWord <- optional wordP
     locationP firstWord <|> (return $ WidthStart Nothing (StartSet1 firstWord))
 
-locationWordP :: Prsr Location
-locationWordP = Word <$> wordWidthP <*> option (StartSet1 Nothing) startP
-    where
-        wordWidthP = token (char '%' *> wordWidthDigitsP)
-        wordWidthDigitsP  =  1 <$ string "8"
-                         <|> 2 <$ string "16"
-                         <|> 4 <$ string "32"
-                         <|> 8 <$ string "64"
+afterAtP :: w -> Location w
+afterApP
 
-layoutLocationP :: Prsr Location
-layoutLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
+mWidthP :: Prsr Width
+mWidthP = token (char '%' *> (  W8   <$ string "8"
+                            <|> W16  <$ string "16"
+                            <|> W32  <$ string "32"
+                            <|> W64  <$ string "64"
+                            <|> W128 <$ string "128" ))
 
-bitmapLocationP :: Prsr Location
-bitmapLocationP = angles bitmapLocationInnerP <?> "bitfield location"
+bWidthP :: Prsr ()
+
+mLocationP :: Prsr MLocation
+mLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
+
+bLocationP :: Prsr BLocation
+bLocationP = angles bitmapLocationInnerP <?> "bitfield location"
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier)
@@ -119,36 +130,8 @@ docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
     where
         untilEOLOrBrace = (strip . pack) <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n' && c /= '#'))
 
-data ValueItem = ValueItem Integer Text Text deriving Show
-
 valueItemP :: Prsr ValueItem
 valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
-
-data Item b
-    = Item
-        {   _width :: Word
-        ,   _start :: StartSet
-        ,   _name  :: Text
-        ,   _doc   :: Text
-        ,   _body  :: b
-        }
-    deriving Show
-
-data BitmapBody
-    = BitmapBody
-        {   _values  :: [ValueItem]
-        ,   _bitmaps :: [BitmapItem]
-        }
-    deriving Show
-type BitmapItem = Item BitmapBody
-
-data LayoutBody
-    = LayoutBody [LayoutItem]
-    | LayoutBodyBitmap BitmapBody
-    deriving Show
-type LayoutItem = Item LayoutBody
-
-type MLayout = LayoutItem
 
 {-
 -- FIXME: use this for itemToList
