@@ -17,7 +17,7 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
-import           Data.Aeson
+-- import           Data.Aeson
 import           Data.Foldable as F
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
@@ -35,9 +35,6 @@ import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 import qualified Data.Text.Prettyprint.Doc as PPD
 import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
--- type Addr = Word64
--- type Width = Word64
--- type Val = Word64
 
 data StartSet' s
     = StartSet
@@ -73,33 +70,33 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-startArrayP :: Prsr ParsedStartSet
+startArrayP :: Prsr StartSet
 startArrayP = do
     start <- optional wordP
     (brackets $ StartSetPeriodic start <$> wordP <*> optional ((symbolic '+') *> wordP)) -- FIXME: n should be >= 2
         <|> (return $ StartSet1 start)
 
-startSetP :: Prsr ParsedStartSet
+startSetP :: Prsr StartSet
 startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
-startP :: Prsr ParsedStartSet
+startP :: Prsr StartSet
 startP = symbolic '@' *> (startSetP <|> startArrayP)
 
-locationP :: Maybe Word -> Prsr ParsedLocation
+locationP :: Maybe Word -> Prsr Location
 locationP firstWord  =  FromTo firstWord <$> (symbolic ':' *> wordP)
                     <|> WidthStart firstWord <$> startP
 
-layoutLocationInnerP :: Prsr ParsedLocation
+layoutLocationInnerP :: Prsr Location
 layoutLocationInnerP = do
     firstWord <- optional wordP
     locationP firstWord <|> (return $ WidthStart firstWord (StartSet1 Nothing))
 
-bitmapLocationInnerP :: Prsr ParsedLocation
+bitmapLocationInnerP :: Prsr Location
 bitmapLocationInnerP = do
     firstWord <- optional wordP
     locationP firstWord <|> (return $ WidthStart Nothing (StartSet1 firstWord))
 
-locationWordP :: Prsr ParsedLocation
+locationWordP :: Prsr Location
 locationWordP = Word <$> wordWidthP <*> option (StartSet1 Nothing) startP
     where
         wordWidthP = token (char '%' *> wordWidthDigitsP)
@@ -108,10 +105,10 @@ locationWordP = Word <$> wordWidthP <*> option (StartSet1 Nothing) startP
                          <|> 4 <$ string "32"
                          <|> 8 <$ string "64"
 
-layoutLocationP :: Prsr ParsedLocation
+layoutLocationP :: Prsr Location
 layoutLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
 
-bitmapLocationP :: Prsr ParsedLocation
+bitmapLocationP :: Prsr Location
 bitmapLocationP = angles bitmapLocationInnerP <?> "bitfield location"
 
 nameP :: Prsr Text
@@ -153,6 +150,7 @@ type LayoutItem = Item LayoutBody
 
 type MLayout = LayoutItem
 
+{-
 -- FIXME: use this for itemToList
 itemToList :: Item b -> [(Word, Word)]
 itemToList (Item w (StartSet1 s) _ _ _) = [(s, s + w)]
@@ -162,7 +160,9 @@ itemToList (Item w (StartSet ss) _ _ _) = LNE.toList $ fmap f ss
 itemToList (Item w (StartSetPeriodic first n step) _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
+-}
 
+{-
 jsonItem :: ToJSON b => Text -> Item b -> Value
 jsonItem t (Item w s n d b) = object [ "width"     .= w
                                      , "start"     .= s
@@ -202,6 +202,8 @@ instance ToJSON LayoutBody where
 
 instance ToJSON LayoutItem where
     toJSON x = jsonItem (case (_body x) of LayoutBody _ -> "layout" ; LayoutBodyBitmap _ -> "layout_bitmaps") x
+
+-}
 
 bitmapBodyIsEmpty :: BitmapBody -> Bool
 bitmapBodyIsEmpty (BitmapBody [] []) = True
@@ -246,6 +248,7 @@ instance Pretty LayoutItem where
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
 
+{-
 maxStartSet :: StartSet -> Word
 maxStartSet (StartSet ss)            = maximum $ LNE.map fst ss
 maxStartSet (StartSetPeriodic f n s) = f + (n - 1) * s
@@ -262,14 +265,16 @@ upperBoundItemList :: [Item b] -> Word
 upperBoundItemList = P.foldl f 0
     where
         f x = max x . upperBoundItem
+-}
 
-resolve :: [Item b] -> Word -> ParsedLocation -> Prsr (Word, StartSet)
+{-
+resolve :: [Item b] -> Word -> Location -> Prsr (Word, StartSet)
 resolve elderSibs childrenWidth = resolve'
     where
         upperBoundOfSibs :: Word
         upperBoundOfSibs = upperBoundItemList elderSibs
 
-        resolve' :: ParsedLocation -> Prsr (Word, StartSet)
+        resolve' :: Location -> Prsr (Word, StartSet)
         resolve' (FromTo (Just x) y) = (w, ) <$> resolveW w (StartSet1 $ Just a)
             where
                 (a, b) = if x > y then (y, x) else (x, y)
@@ -325,6 +330,7 @@ resolve elderSibs childrenWidth = resolve'
                 checkPrev sns s = if intersectsList (s, s + widthOfThisItem) (P.map (\ x -> (x, x + widthOfThisItem)) sns)
                     then Nothing
                     else Just ()
+-}
 
 -- FIXME: not only for Word
 intersectPair :: (Word, Word) -> (Word, Word) -> Bool
@@ -333,8 +339,8 @@ intersectPair (l, r) (l', r') = if l < l' then l' < r else l < r'
 intersectsList :: (Word, Word) -> [(Word, Word)] -> Bool
 intersectsList p = F.any (intersectPair p)
 
-intersectsItems :: (Word, Word) -> [Item b] -> Bool
-intersectsItems p = intersectsList p . F.concat . fmap itemToList
+-- intersectsItems :: (Word, Word) -> [Item b] -> Bool
+-- intersectsItems p = intersectsList p . F.concat . fmap itemToList
 
 someFoldlM :: (Alternative m, Monad m) => m b -> (b -> m b) -> m b
 someFoldlM first next = first >>= f
