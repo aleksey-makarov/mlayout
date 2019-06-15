@@ -40,11 +40,18 @@ data Width = W8 | W16 | W32 | W64 | W128 | W Word
 
 data Location w
     = FromTo (Maybe Word) (Maybe Word)                   -- [a:b], a is the first, b is the maximum, not upper bound
-    | WordNext w                                         -- [%32@], [5@]
-    | Word (Maybe w) Word ParsedStartSet                 -- [@0x11], [7@0x22], [%16@3]
+    | WordNext w                                         -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
+    | Word (Maybe w) Word                                -- [@0x11], [7@0x22], [%16@3]
     | Fields (Maybe w) (NonEmpty [((Maybe Word), Text)]) -- [@{A, B, C}], [%12@{12 A, 34 B}]
     | Periodic (Maybe w) Word (Maybe Word)               -- [3@2 +4]
     deriving Show
+
+-- % Width -> @
+-- Word ->
+--         @
+--         :
+-- : (Maybe Word)
+-- @
 
 type MLocation = Location Width
 type BLocation = Location Word
@@ -90,22 +97,19 @@ startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nam
 startP :: Prsr StartSet
 startP = symbolic '@' *> (startSetP <|> startArrayP)
 
-locationP :: Maybe Word -> Prsr Location
-locationP firstWord  =  FromTo firstWord <$> (symbolic ':' *> wordP)
+locationP :: Maybe w -> Prsr (Location w)
+locationP firstWord  =  FromTo firstWord <$> (symbolic ':' *> optional wordP)
                     <|> WidthStart firstWord <$> startP
 
-layoutLocationInnerP :: Prsr Location
-layoutLocationInnerP = do
-    firstWord <- optional wordP
-    locationP firstWord <|> (return $ WidthStart firstWord (StartSet1 Nothing))
+fromToP :: Word -> Prsr (Location w)
+fromToP = undefined
 
-bitmapLocationInnerP :: Prsr Location
-bitmapLocationInnerP = do
-    firstWord <- optional wordP
-    locationP firstWord <|> (return $ WidthStart Nothing (StartSet1 firstWord))
-
-afterAtP :: w -> Location w
-afterApP
+bLocationP :: Prsr BLocation
+bLocationP = angles p <?> "bitfield location"
+    where
+        p = do
+            width <- optional wordP
+            locationP width <|> (return $ Word Nothing width)
 
 mWidthP :: Prsr Width
 mWidthP = token (char '%' *> (  W8   <$ string "8"
@@ -114,13 +118,21 @@ mWidthP = token (char '%' *> (  W8   <$ string "8"
                             <|> W64  <$ string "64"
                             <|> W128 <$ string "128" ))
 
-bWidthP :: Prsr ()
+-- [%12@..], [%12]
+mWordP :: Prsr MLocation
+mWordP = do
+    word <- mWidthP
+    (startP <*> (Just <$> mWidthP)) <|> return (WordNext mWidthP)
 
 mLocationP :: Prsr MLocation
-mLocationP = brackets (locationWordP <|> layoutLocationInnerP) <?> "layout location"
+mLocationP = brackets (mWordP <|> p) <?> "memory layout location"
+    where
+        p = maybe pnothing px <*> optional wordP
+        pnothing = fromToP Nothing <|> startP Nothing -- [:12] <|> [@..] <|> [12]
+        px x = fromToP x <|> startP x <|> return (WordNext (W x)) -- [12:12] <|> [12@..] <|> [12]
 
-bLocationP :: Prsr BLocation
-bLocationP = angles bitmapLocationInnerP <?> "bitfield location"
+valueItemP :: Prsr ValueItem
+valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier)
@@ -129,9 +141,6 @@ docP :: Prsr Text
 docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
     where
         untilEOLOrBrace = (strip . pack) <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n' && c /= '#'))
-
-valueItemP :: Prsr ValueItem
-valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 {-
 -- FIXME: use this for itemToList
