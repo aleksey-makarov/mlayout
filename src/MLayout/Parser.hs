@@ -43,18 +43,11 @@ data Location w
     | WordNext w                                         -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
     | Word (Maybe w) Word                                -- [@0x11], [7@0x22], [%16@3]
     | Fields (Maybe w) (NonEmpty [((Maybe Word), Text)]) -- [@{A, B, C}], [%12@{12 A, 34 B}]
-    | Periodic (Maybe w) Word (Maybe Word)               -- [3@2 +4]
+    | Periodic (Maybe w) (Maybe Word) Word (Maybe Word)  -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
     deriving Show
 
--- % Width -> @
--- Word ->
---         @
---         :
--- : (Maybe Word)
--- @
-
-type MLocation = Location Width
-type BLocation = Location Word
+type MLocation = Location Width -- Word OR W8, W16..
+type BLocation = Location Word  -- just Word
 
 data ValueItem = ValueItem Integer Text Text deriving Show   -- = value, name, doc
 
@@ -75,6 +68,8 @@ type MData = [BLayout]
 
 type MLayout = Tree (Item MLocation MData)
 
+--------------------------------------------------------------------------------
+
 throw :: (Applicative m, Errable m) => Format (m b) a -> a
 throw f = runFormat f $ raiseErr . failed . TL.unpack . TLB.toLazyText
 
@@ -85,31 +80,39 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-startArrayP :: Prsr StartSet
-startArrayP = do
-    start <- optional wordP
-    (brackets $ StartSetPeriodic start <$> wordP <*> optional ((symbolic '+') *> wordP)) -- FIXME: n should be >= 2
-        <|> (return $ StartSet1 start)
+startArrayP :: Maybe w -> Maybe Word -> Prsr (Location w)
+startArrayP maybeWidth maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
 
-startSetP :: Prsr StartSet
-startSetP = StartSet <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+-- [..@12[]], [..@12]
+startArrayWithPositionP :: Maybe w -> Word -> Prsr (Location w)
+startArrayWithPositionP maybeWidth start = brackets (startArrayP maybeWidth (Just start)) <|> return (Word maybeWidth start)
 
-startP :: Prsr StartSet
-startP = symbolic '@' *> (startSetP <|> startArrayP)
+startArrayNoPositionP :: Maybe w -> Prsr (Location w)
+startArrayNoPositionP maybeWidth = brackets (startArrayP maybeWidth Nothing)
 
-locationP :: Maybe w -> Prsr (Location w)
-locationP firstWord  =  FromTo firstWord <$> (symbolic ':' *> optional wordP)
-                    <|> WidthStart firstWord <$> startP
+-- [..@12[34 + 56]] <> [..@12]
+startArrayOrSimpleP :: Maybe w -> Prsr (Location w)
+startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP <&> startArrayWithPositionP maybeWidth)
 
-fromToP :: Word -> Prsr (Location w)
-fromToP = undefined
+startSetP :: Maybe w -> Prsr (Location w)
+startSetP firstMaybeWord = Fields firstMaybeWord <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
+startP :: Maybe w -> Prsr (Location w)
+startP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
+startP (Just w)@justWidth = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WorldNext w))
+
+fromToP :: Maybe w -> Prsr (Location w)
+fromToP maybeWidth = FromTo maybeWidth <$> (symbolic ':' *> optional wordP)
+
+fromToOrStartP :: Maybe w -> Prsr (Location w)
+fromToOrStartP x = fromToP x <|> startP x
+
+locationP :: (w -> Location w) -> Prsr (Location w)
+locationP justOneWord = optional wordP <&> maybe (fromToOrStartP Nothing) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
+
+-- <12:12> <|> <12@..>
 bLocationP :: Prsr BLocation
-bLocationP = angles p <?> "bitfield location"
-    where
-        p = do
-            width <- optional wordP
-            locationP width <|> (return $ Word Nothing width)
+bLocationP = angles (locationP (\x -> Word Nothing x)) <?> "bitfield location"
 
 mWidthP :: Prsr Width
 mWidthP = token (char '%' *> (  W8   <$ string "8"
@@ -120,27 +123,34 @@ mWidthP = token (char '%' *> (  W8   <$ string "8"
 
 -- [%12@..], [%12]
 mWordP :: Prsr MLocation
-mWordP = do
-    word <- mWidthP
-    (startP <*> (Just <$> mWidthP)) <|> return (WordNext mWidthP)
+mWordP = mWidthP <&> (\x -> startP (Just x) <|> (return (WordNext (W x))))
 
+-- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mLocationP :: Prsr MLocation
-mLocationP = brackets (mWordP <|> p) <?> "memory layout location"
-    where
-        p = maybe pnothing px <*> optional wordP
-        pnothing = fromToP Nothing <|> startP Nothing -- [:12] <|> [@..] <|> [12]
-        px x = fromToP x <|> startP x <|> return (WordNext (W x)) -- [12:12] <|> [12@..] <|> [12]
+mLocationP = brackets (mWordP <|> (locationP (\x -> WordNext (W x)))) <?> "memory layout location"
 
 valueItemP :: Prsr ValueItem
 valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 nameP :: Prsr Text
-nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier)
+nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier) <?> "id"
 
 docP :: Prsr Text
-docP = (stringLiteral <|> untilEOLOrBrace) <?> "documentation string"
+docP = stringLiteral <?> "documentation string"
+
+bLayoutP :: Prsr BLayout
+bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
     where
-        untilEOLOrBrace = (strip . pack) <$> (token $ many $ satisfy (\ c -> c /= '{' && c /= '\n' && c /= '#'))
+        bLayoutP' = do
+            l <- bLocationP
+            n <- nameP
+            d <- docP
+            b <- maybe (BitmapBody [] []) id <$> optional (braces bitmapBodyP)
+            (w, s) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
+            return $ Item w s n d b
+
+--------------------------------------------------------------------------------
+
 
 {-
 -- FIXME: use this for itemToList
