@@ -138,6 +138,11 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = stringLiteral <?> "documentation string"
 
+bBodyP :: Prsr ([BData], [BLayout])
+bBodyP = braces bBodyP' <|> return ([], [])
+    where
+        bBodyP' = undefined
+
 bLayoutP :: Prsr BLayout
 bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
     where
@@ -145,9 +150,76 @@ bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
             l <- bLocationP
             n <- nameP
             d <- docP
-            b <- maybe (BitmapBody [] []) id <$> optional (braces bitmapBodyP)
-            (w, s) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
-            return $ Item w s n d b
+            (bdata, subtrees) <- bBodyP
+            return $ Tree (Item l n d bdata) subtrees
+
+mBodyP :: Prsr ([MData], [MLayout])
+mBodyP = braces mBodyP' <|> return ([], [])
+    where
+        mBodyP' = undefined
+
+mLayoutP :: Prsr MLayout
+mLayoutP elderSibs = mLayoutP' <?> "memory layout item"
+    where
+        mLayoutP' = do
+            l <- bLocationP
+            n <- nameP
+            d <- docP
+            (mdata, subtrees) <- mBodyP
+            return $ Tree (Item l n d mdata) subtrees
+
+--------------------------------------------------------------------------------
+
+instance Pretty Width where
+    pretty W8 = "%8"
+    pretty W16 = "%16"
+    pretty W32 = "%32"
+    pretty W64 = "%64"
+    pretty W128 = "%128"
+    pretty (W w) = pretty w
+
+prettyMaybe :: Pretty w => Maybe w -> Doc ann
+prettyMaybe (Just x) = undefined
+prettyMaybe Nothing = undefined
+
+instance Pretty w => Pretty (Location w) where
+    pretty FromTo (Maybe Word) (Maybe Word)
+    pretty WordNext w
+    pretty Word (Maybe w) Word
+    pretty Fields (Maybe w) (NonEmpty [((Maybe Word), Text)])
+    pretty Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
+
+prettyItem :: Pretty b => (Doc ann -> Doc ann) -> (b -> Bool) -> Item b -> Doc ann
+prettyItem envelop bodyIsEmpty (Item w s n d b) = envelop (pretty w <> "@" <> pretty s)
+                                   <+> pretty n
+                                   <+> dquotes (pretty d)
+                                   <+> if bodyIsEmpty b then mempty else pretty b
+
+instance Pretty ValueItem where
+    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
+
+instance Pretty BitmapItem where
+    pretty i = prettyItem PPD.angles bitmapBodyIsEmpty i
+
+instance Pretty BitmapBody where
+    pretty (BitmapBody vs bms) = PPD.braces (line <> indent 4 (PPD.vsep l) <> line)
+        where
+            l = fmap pretty vs ++ fmap pretty bms
+
+instance Pretty LayoutBody where
+    pretty (LayoutBody lis) = PPD.braces (line <> indent 4 (PPD.vsep (fmap pretty lis)) <> line)
+    pretty (LayoutBodyBitmap bb) = pretty bb
+
+instance Pretty StartSet where
+    pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
+        where
+            posPretty (at, name) = pretty at <+> pretty name
+    pretty (StartSetPeriodic f n s) = pretty f <> PPD.brackets (pretty n <+> "+" <> pretty s)
+    pretty (StartSet1 s) = pretty s
+
+instance Pretty LayoutItem where
+    pretty i = prettyItem PPD.brackets layoutBodyIsEmpty i
+
 
 --------------------------------------------------------------------------------
 
@@ -216,36 +288,6 @@ layoutBodyIsEmpty (LayoutBody []) = True
 layoutBodyIsEmpty (LayoutBodyBitmap x) = bitmapBodyIsEmpty x
 layoutBodyIsEmpty _ = False
 
-prettyItem :: Pretty b => (Doc ann -> Doc ann) -> (b -> Bool) -> Item b -> Doc ann
-prettyItem envelop bodyIsEmpty (Item w s n d b) = envelop (pretty w <> "@" <> pretty s)
-                                   <+> pretty n
-                                   <+> dquotes (pretty d)
-                                   <+> if bodyIsEmpty b then mempty else pretty b
-
-instance Pretty ValueItem where
-    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
-
-instance Pretty BitmapItem where
-    pretty i = prettyItem PPD.angles bitmapBodyIsEmpty i
-
-instance Pretty BitmapBody where
-    pretty (BitmapBody vs bms) = PPD.braces (line <> indent 4 (PPD.vsep l) <> line)
-        where
-            l = fmap pretty vs ++ fmap pretty bms
-
-instance Pretty LayoutBody where
-    pretty (LayoutBody lis) = PPD.braces (line <> indent 4 (PPD.vsep (fmap pretty lis)) <> line)
-    pretty (LayoutBodyBitmap bb) = pretty bb
-
-instance Pretty StartSet where
-    pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
-        where
-            posPretty (at, name) = pretty at <+> pretty name
-    pretty (StartSetPeriodic f n s) = pretty f <> PPD.brackets (pretty n <+> "+" <> pretty s)
-    pretty (StartSet1 s) = pretty s
-
-instance Pretty LayoutItem where
-    pretty i = prettyItem PPD.brackets layoutBodyIsEmpty i
 
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
