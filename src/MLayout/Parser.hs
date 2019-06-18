@@ -19,11 +19,13 @@ import           Control.Applicative
 import           Control.Monad
 -- import           Data.Aeson
 import           Data.Foldable as F
+import           Data.Functor
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
+import           Data.Tree
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
@@ -81,7 +83,7 @@ wordP = do
         else return $ fromInteger v
 
 startArrayP :: Maybe w -> Maybe Word -> Prsr (Location w)
-startArrayP maybeWidth maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
+startArrayP maybeWidth maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP)
 
 -- [..@12[]], [..@12]
 startArrayWithPositionP :: Maybe w -> Word -> Prsr (Location w)
@@ -92,14 +94,14 @@ startArrayNoPositionP maybeWidth = brackets (startArrayP maybeWidth Nothing)
 
 -- [..@12[34 + 56]] <> [..@12]
 startArrayOrSimpleP :: Maybe w -> Prsr (Location w)
-startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP <&> startArrayWithPositionP maybeWidth)
+startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP >>= (startArrayWithPositionP maybeWidth))
 
 startSetP :: Maybe w -> Prsr (Location w)
 startSetP firstMaybeWord = Fields firstMaybeWord <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
 startP :: Maybe w -> Prsr (Location w)
 startP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
-startP (Just w)@justWidth = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WorldNext w))
+startP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WorldNext w))
 
 fromToP :: Maybe w -> Prsr (Location w)
 fromToP maybeWidth = FromTo maybeWidth <$> (symbolic ':' *> optional wordP)
@@ -141,7 +143,7 @@ docP = stringLiteral <?> "documentation string"
 bBodyP :: Prsr ([BData], [BLayout])
 bBodyP = braces bBodyP' <|> return ([], [])
     where
-        bBodyP' = undefined
+        bBodyP' = partitionEithers <$> some (Left <$> valueItemP <|> Right <$> bLayoutP)
 
 bLayoutP :: Prsr BLayout
 bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
@@ -156,7 +158,7 @@ bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
 mBodyP :: Prsr ([MData], [MLayout])
 mBodyP = braces mBodyP' <|> return ([], [])
     where
-        mBodyP' = undefined
+        mBodyP' = partitionEithers <$> some (Left <$> bLayout <|> Right <$> mLayoutP)
 
 mLayoutP :: Prsr MLayout
 mLayoutP elderSibs = mLayoutP' <?> "memory layout item"
@@ -179,50 +181,55 @@ instance Pretty Width where
     pretty (W w) = pretty w
 
 prettyMaybe :: Pretty w => Maybe w -> Doc ann
-prettyMaybe (Just x) = undefined
-prettyMaybe Nothing = undefined
+prettyMaybe (Just x) = pretty x
+prettyMaybe Nothing = mempty
 
 instance Pretty w => Pretty (Location w) where
-    pretty FromTo (Maybe Word) (Maybe Word)
-    pretty WordNext w
-    pretty Word (Maybe w) Word
-    pretty Fields (Maybe w) (NonEmpty [((Maybe Word), Text)])
-    pretty Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
-
-prettyItem :: Pretty b => (Doc ann -> Doc ann) -> (b -> Bool) -> Item b -> Doc ann
-prettyItem envelop bodyIsEmpty (Item w s n d b) = envelop (pretty w <> "@" <> pretty s)
-                                   <+> pretty n
-                                   <+> dquotes (pretty d)
-                                   <+> if bodyIsEmpty b then mempty else pretty b
+    -- FromTo (Maybe Word) (Maybe Word)
+    pretty (FromTo mf mt) = pretty mf <> ":" <> pretty mt
+     -- WordNext w
+    pretty (WordNext w) = pretty w <> "@"
+    -- Word (Maybe w) Word
+    pretty (Word mw at) = pretty mv <> "@" <> pretty at
+    -- Fields (Maybe w) (NonEmpty [((Maybe Word), Text)])
+    pretty (Fields mw pairs) = pretty mv <> "@" <> PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty pairs
+        where
+            posPretty (at, name) = pretty at <+> pretty name
+    -- Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
+    pretty (Periodic mw mat n ms) = pretty mv <> "@" <> pretty mat <> PPD.brackets (pretty n <+> "+" <> pretty ms)
 
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-instance Pretty BitmapItem where
-    pretty i = prettyItem PPD.angles bitmapBodyIsEmpty i
+prettyItem :: (Doc ann -> Doc ann) -> [Doc ann] -> Item w d -> Doc ann
+prettyItem envelop prettyDataList (Node (Item l n d _) s) = envelop (envelop $ pretty l)
+                                   <+> pretty n
+                                   <+> dquotes (pretty d)
+                                   <+> if bodyIsEmpty then mempty else prettyBody
+    where
+        bodyIsEmpty = case (prettyDataList, s) of ([], []) -> True ; _ -> False
+        prettyBody = PPD.braces (line <> indent 4 (PPD.vsep prettyDataList ++ (fmap pretty s)) <> line)
 
-instance Pretty BitmapBody where
-    pretty (BitmapBody vs bms) = PPD.braces (line <> indent 4 (PPD.vsep l) <> line)
-        where
-            l = fmap pretty vs ++ fmap pretty bms
 
-instance Pretty LayoutBody where
-    pretty (LayoutBody lis) = PPD.braces (line <> indent 4 (PPD.vsep (fmap pretty lis)) <> line)
-    pretty (LayoutBodyBitmap bb) = pretty bb
+instance Pretty BLayout where
+    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.angles (fmap pretty b)
 
-instance Pretty StartSet where
-    pretty (StartSet ss) = PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty ss
-        where
-            posPretty (at, name) = pretty at <+> pretty name
-    pretty (StartSetPeriodic f n s) = pretty f <> PPD.brackets (pretty n <+> "+" <> pretty s)
-    pretty (StartSet1 s) = pretty s
-
-instance Pretty LayoutItem where
-    pretty i = prettyItem PPD.brackets layoutBodyIsEmpty i
-
+instance Pretty MLayout where
+    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.brackets (fmap pretty b)
 
 --------------------------------------------------------------------------------
 
+-- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
+newtype Prsr a = Prsr { runPrsr :: Parser a }
+    deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
+
+instance TokenParsing Prsr where
+    someSpace = buildSomeSpaceParser (Prsr someSpace) $ CommentStyle "" "" "#" True
+-- use the default implementation for other methods:
+-- nesting, semi, highlight, token
+
+parser :: Parser [MLayout]
+parser = runPrsr $ whiteSpace *> (some $ layoutItemP []) <* eof
 
 {-
 -- FIXME: use this for itemToList
@@ -278,6 +285,7 @@ instance ToJSON LayoutItem where
     toJSON x = jsonItem (case (_body x) of LayoutBody _ -> "layout" ; LayoutBodyBitmap _ -> "layout_bitmaps") x
 
 -}
+{-
 
 bitmapBodyIsEmpty :: BitmapBody -> Bool
 bitmapBodyIsEmpty (BitmapBody [] []) = True
@@ -292,7 +300,6 @@ layoutBodyIsEmpty _ = False
 -- FIXME
 -- type LayoutTopItem = Item () LayoutBody
 
-{-
 maxStartSet :: StartSet -> Word
 maxStartSet (StartSet ss)            = maximum $ LNE.map fst ss
 maxStartSet (StartSetPeriodic f n s) = f + (n - 1) * s
@@ -374,7 +381,6 @@ resolve elderSibs childrenWidth = resolve'
                 checkPrev sns s = if intersectsList (s, s + widthOfThisItem) (P.map (\ x -> (x, x + widthOfThisItem)) sns)
                     then Nothing
                     else Just ()
--}
 
 -- FIXME: not only for Word
 intersectPair :: (Word, Word) -> (Word, Word) -> Bool
@@ -391,61 +397,6 @@ someFoldlM first next = first >>= f
     where
         f b' = (optional $ next b') >>= maybe (return b') f
 
--- FIXME: should be reversed
-bitmapBodyFirstP :: Prsr BitmapBody
-bitmapBodyFirstP  =  (\ x -> BitmapBody [x] [ ]) <$> valueItemP
-                 <|> (\ x -> BitmapBody [ ] [x]) <$> bitmapItemP []
+-}
 
-bitmapBodyNextP :: BitmapBody -> Prsr BitmapBody
-bitmapBodyNextP (BitmapBody vs bms) =
-    do
-        v <- valueItemP
-        return $ BitmapBody (vs ++ [v]) bms
-    <|> do
-        bm <- bitmapItemP bms
-        return $ BitmapBody vs (bms ++ [bm])
 
-bitmapBodyP :: Prsr BitmapBody
-bitmapBodyP = someFoldlM bitmapBodyFirstP bitmapBodyNextP
-
-bitmapItemP :: [Item b] -> Prsr BitmapItem
-bitmapItemP elderSibs = bitmapItemP' <?> "bitmap item"
-    where
-        bitmapItemP' = do
-            l <- bitmapLocationP
-            n <- nameP
-            d <- docP
-            b <- maybe (BitmapBody [] []) id <$> optional (braces bitmapBodyP)
-            (w, s) <- resolve elderSibs (upperBoundItemList $ _bitmaps b) l
-            return $ Item w s n d b
-
--- FIXME: should be reversed
-layoutBodyXP :: [LayoutItem] -> Prsr [LayoutItem]
-layoutBodyXP lis = (\ x -> lis ++ [x]) <$> layoutItemP lis
-
-layoutBodyP :: Prsr LayoutBody
-layoutBodyP  =  LayoutBodyBitmap <$> bitmapBodyP
-            <|> LayoutBody <$> someFoldlM (layoutBodyXP []) layoutBodyXP
-
-layoutItemP :: [Item b] -> Prsr LayoutItem
-layoutItemP elderSibs = layoutItemP' <?> "layout item"
-    where
-        layoutItemP' = do
-            l <- layoutLocationP
-            n <- nameP
-            d <- docP
-            b <- maybe (LayoutBody []) id <$> optional (braces layoutBodyP)
-            (w, s) <- resolve elderSibs (upperBoundLayoutBody b) l
-            return $ Item w s n d b
-
--- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
-newtype Prsr a = Prsr { runPrsr :: Parser a }
-    deriving (Functor, Applicative, Alternative, Monad, MonadPlus, Parsing, CharParsing, LookAheadParsing, Errable)
-
-instance TokenParsing Prsr where
-    someSpace = buildSomeSpaceParser (Prsr someSpace) $ CommentStyle "" "" "#" True
--- use the default implementation for other methods:
--- nesting, semi, highlight, token
-
-parser :: Parser [LayoutItem]
-parser = runPrsr $ whiteSpace *> (some $ layoutItemP []) <* eof
