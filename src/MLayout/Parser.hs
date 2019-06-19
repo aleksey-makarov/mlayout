@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -18,8 +19,7 @@ import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
 -- import           Data.Aeson
-import           Data.Foldable as F
-import           Data.Functor
+import           Data.Either
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
@@ -41,11 +41,11 @@ import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 data Width = W8 | W16 | W32 | W64 | W128 | W Word
 
 data Location w
-    = FromTo (Maybe Word) (Maybe Word)                   -- [a:b], a is the first, b is the maximum, not upper bound
-    | WordNext w                                         -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
-    | Word (Maybe w) Word                                -- [@0x11], [7@0x22], [%16@3]
-    | Fields (Maybe w) (NonEmpty [((Maybe Word), Text)]) -- [@{A, B, C}], [%12@{12 A, 34 B}]
-    | Periodic (Maybe w) (Maybe Word) Word (Maybe Word)  -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
+    = FromTo (Maybe Word) (Maybe Word)                  -- [a:b], a is the first, b is the maximum, not upper bound
+    | WordNext w                                        -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
+    | Word (Maybe w) Word                               -- [@0x11], [7@0x22], [%16@3]
+    | Fields (Maybe w) (NonEmpty (Maybe Word, Text))    -- [@{A, B, C}], [%12@{12 A, 34 B}]
+    | Periodic (Maybe w) (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
     deriving Show
 
 type MLocation = Location Width -- Word OR W8, W16..
@@ -64,11 +64,11 @@ data Item w d
 
 type BData = [ValueItem]
 
-type BLayout = Tree (Item BLocation BData)
+type BLayout = Tree (Item Word BData)
 
 type MData = [BLayout]
 
-type MLayout = Tree (Item MLocation MData)
+type MLayout = Tree (Item Width MData)
 
 --------------------------------------------------------------------------------
 
@@ -101,16 +101,19 @@ startSetP firstMaybeWord = Fields firstMaybeWord <$> (braces $ sepByNonEmpty ((,
 
 startP :: Maybe w -> Prsr (Location w)
 startP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
-startP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WorldNext w))
+startP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WordNext w))
 
-fromToP :: Maybe w -> Prsr (Location w)
-fromToP maybeWidth = FromTo maybeWidth <$> (symbolic ':' *> optional wordP)
+fromToP :: Maybe Word -> Prsr (Location w)
+fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 
-fromToOrStartP :: Maybe w -> Prsr (Location w)
-fromToOrStartP x = fromToP x <|> startP x
+toWidth :: Word -> w
+toWidth = undefined
 
-locationP :: (w -> Location w) -> Prsr (Location w)
-locationP justOneWord = optional wordP <&> maybe (fromToOrStartP Nothing) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
+fromToOrStartP :: Maybe Word -> Prsr (Location w)
+fromToOrStartP x = fromToP x <|> startP (toWidth <$> x)
+
+locationP :: (Word -> Location w) -> Prsr (Location w)
+locationP justOneWord = optional wordP >>= maybe (fromToOrStartP Nothing) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr BLocation
@@ -125,7 +128,7 @@ mWidthP = token (char '%' *> (  W8   <$ string "8"
 
 -- [%12@..], [%12]
 mWordP :: Prsr MLocation
-mWordP = mWidthP <&> (\x -> startP (Just x) <|> (return (WordNext (W x))))
+mWordP = mWidthP >>= (\x -> startP (Just x) <|> (return (WordNext x)))
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mLocationP :: Prsr MLocation
@@ -140,35 +143,35 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = stringLiteral <?> "documentation string"
 
-bBodyP :: Prsr ([BData], [BLayout])
+bBodyP :: Prsr (BData, [BLayout])
 bBodyP = braces bBodyP' <|> return ([], [])
     where
         bBodyP' = partitionEithers <$> some (Left <$> valueItemP <|> Right <$> bLayoutP)
 
 bLayoutP :: Prsr BLayout
-bLayoutP elderSibs = bLayoutP' <?> "bitmap item"
+bLayoutP = bLayoutP' <?> "bitmap item"
     where
         bLayoutP' = do
             l <- bLocationP
             n <- nameP
             d <- docP
             (bdata, subtrees) <- bBodyP
-            return $ Tree (Item l n d bdata) subtrees
+            return $ Node (Item l n d bdata) subtrees
 
-mBodyP :: Prsr ([MData], [MLayout])
+mBodyP :: Prsr (MData, [MLayout])
 mBodyP = braces mBodyP' <|> return ([], [])
     where
-        mBodyP' = partitionEithers <$> some (Left <$> bLayout <|> Right <$> mLayoutP)
+        mBodyP' = partitionEithers <$> some (Left <$> bLayoutP <|> Right <$> mLayoutP)
 
 mLayoutP :: Prsr MLayout
-mLayoutP elderSibs = mLayoutP' <?> "memory layout item"
+mLayoutP = mLayoutP' <?> "memory layout item"
     where
         mLayoutP' = do
-            l <- bLocationP
+            l <- mLocationP
             n <- nameP
             d <- docP
             (mdata, subtrees) <- mBodyP
-            return $ Tree (Item l n d mdata) subtrees
+            return $ Node (Item l n d mdata) subtrees
 
 --------------------------------------------------------------------------------
 
@@ -186,36 +189,36 @@ prettyMaybe Nothing = mempty
 
 instance Pretty w => Pretty (Location w) where
     -- FromTo (Maybe Word) (Maybe Word)
-    pretty (FromTo mf mt) = pretty mf <> ":" <> pretty mt
+    pretty (FromTo mf mt) = prettyMaybe mf <> ":" <> prettyMaybe mt
      -- WordNext w
     pretty (WordNext w) = pretty w <> "@"
     -- Word (Maybe w) Word
-    pretty (Word mw at) = pretty mv <> "@" <> pretty at
-    -- Fields (Maybe w) (NonEmpty [((Maybe Word), Text)])
-    pretty (Fields mw pairs) = pretty mv <> "@" <> PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty pairs
+    pretty (Word mw at) = prettyMaybe mw <> "@" <> pretty at
+    -- Fields (Maybe w) (NonEmpty (Maybe Word, Text))
+    pretty (Fields mw pairs) = prettyMaybe mw <> "@" <> (PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty pairs)
         where
-            posPretty (at, name) = pretty at <+> pretty name
+            posPretty (mat, name) = prettyMaybe mat <+> pretty name
     -- Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
-    pretty (Periodic mw mat n ms) = pretty mv <> "@" <> pretty mat <> PPD.brackets (pretty n <+> "+" <> pretty ms)
+    pretty (Periodic mw mat n ms) = prettyMaybe mw <> "@" <> prettyMaybe mat <> PPD.brackets (pretty n <+> "+" <> prettyMaybe ms)
 
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-prettyItem :: (Doc ann -> Doc ann) -> [Doc ann] -> Item w d -> Doc ann
+prettyItem :: (Pretty w, Pretty (Tree (Item w d))) => (Doc ann -> Doc ann) -> [Doc ann] -> Tree (Item w d) -> Doc ann
 prettyItem envelop prettyDataList (Node (Item l n d _) s) = envelop (envelop $ pretty l)
                                    <+> pretty n
                                    <+> dquotes (pretty d)
                                    <+> if bodyIsEmpty then mempty else prettyBody
     where
         bodyIsEmpty = case (prettyDataList, s) of ([], []) -> True ; _ -> False
-        prettyBody = PPD.braces (line <> indent 4 (PPD.vsep prettyDataList ++ (fmap pretty s)) <> line)
+        prettyBody = PPD.braces (line <> indent 4 (PPD.vsep (prettyDataList ++ fmap pretty s)) <> line)
 
 
 instance Pretty BLayout where
-    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.angles (fmap pretty b)
+    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.angles (fmap pretty b) i
 
 instance Pretty MLayout where
-    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.brackets (fmap pretty b)
+    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.brackets (fmap pretty b) i
 
 --------------------------------------------------------------------------------
 
@@ -229,7 +232,7 @@ instance TokenParsing Prsr where
 -- nesting, semi, highlight, token
 
 parser :: Parser [MLayout]
-parser = runPrsr $ whiteSpace *> (some $ layoutItemP []) <* eof
+parser = runPrsr $ whiteSpace *> (some $ mLayoutP) <* eof
 
 {-
 -- FIXME: use this for itemToList
