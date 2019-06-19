@@ -37,7 +37,16 @@ import           Text.Trifecta.Result
 import qualified Data.Text.Prettyprint.Doc as PPD
 import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 
-data Width = W8 | W16 | W32 | W64 | W128 | W Word
+class Width w where
+    fromWord :: Word -> w
+
+data MWidth = W8 | W16 | W32 | W64 | W128 | W Word
+
+instance Width MWidth where
+    fromWord = W
+
+instance Width Word where
+    fromWord = id
 
 data Location w
     = FromTo (Maybe Word) (Maybe Word)                  -- [a:b], a is the first, b is the maximum, not upper bound
@@ -47,7 +56,7 @@ data Location w
     | Periodic (Maybe w) (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
     deriving Show
 
-type MLocation = Location Width -- Word OR W8, W16..
+type MLocation = Location MWidth -- Word OR W8, W16..
 type BLocation = Location Word  -- just Word
 
 data ValueItem = ValueItem Integer Text Text deriving Show   -- = value, name, doc
@@ -67,7 +76,7 @@ type BLayout = Tree (Item Word BData)
 
 type MData = [BLayout]
 
-type MLayout = Tree (Item Width MData)
+type MLayout = Tree (Item MWidth MData)
 
 --------------------------------------------------------------------------------
 
@@ -105,20 +114,17 @@ startP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayO
 fromToP :: Maybe Word -> Prsr (Location w)
 fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 
-toWidth :: Word -> w
-toWidth = undefined
+fromToOrStartP :: Width w => Maybe Word -> Prsr (Location w)
+fromToOrStartP x = fromToP x <|> startP (fromWord <$> x)
 
-fromToOrStartP :: Maybe Word -> Prsr (Location w)
-fromToOrStartP x = fromToP x <|> startP (toWidth <$> x)
-
-locationP :: (Word -> Location w) -> Prsr (Location w)
+locationP :: Width w => (Word -> Location w) -> Prsr (Location w)
 locationP justOneWord = optional wordP >>= maybe (fromToOrStartP Nothing) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr BLocation
 bLocationP = angles (locationP (\x -> Word Nothing x)) <?> "bitfield location"
 
-mWidthP :: Prsr Width
+mWidthP :: Prsr MWidth
 mWidthP = token (char '%' *> (  W8   <$ string "8"
                             <|> W16  <$ string "16"
                             <|> W32  <$ string "32"
@@ -174,7 +180,7 @@ mLayoutP = mLayoutP' <?> "memory layout item"
 
 --------------------------------------------------------------------------------
 
-instance Pretty Width where
+instance Pretty MWidth where
     pretty W8 = "%8"
     pretty W16 = "%16"
     pretty W32 = "%32"
