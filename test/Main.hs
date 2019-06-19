@@ -22,11 +22,10 @@ makeTestCase outDir goldDir path =
         then do
             rmIfExists errPath
             rmIfExists prettyPath
-            rmIfExists jsonPath
             -- mapM_ (rmIfExists . cPath) templates
             return $ if (dropExtension path) `hasExtension` "err"
                 then [mkErr]
-                else [ mkGoldPretty, mkGoldJSON ] -- : mkGoldCs
+                else [mkGoldPretty] -- : mkGoldCs
         else mzero
     where
 
@@ -35,7 +34,6 @@ makeTestCase outDir goldDir path =
 
         testErrorName  = pathBaseName ++ " (error)"
         testPrettyName = pathBaseName ++ " (pretty)"
-        testJSONName   = pathBaseName ++ " (json)"
         -- testCName t    = unpack $ format (fp % " (" % fp % ")") (basename path) (filename t)
 
         -- templates :: [FilePath]
@@ -44,8 +42,6 @@ makeTestCase outDir goldDir path =
         errPath        = outDir  </> pathFile <.> "err"
         prettyGoldPath = goldDir </> pathFile <.> "pretty" <.> "gold"
         prettyPath     = outDir  </> pathFile <.> "pretty"
-        jsonPath       = outDir  </> pathFile <.> "json"
-        jsonGoldPath   = goldDir </> pathFile <.> "json" <.> "gold"
         -- cPath     t    = outDir  </> pathFile <.> (format fp $ basename t)
         -- cGoldPath t    = goldDir </> pathFile <.> (format fp $ basename t) <.> "gold"
 
@@ -59,17 +55,11 @@ makeTestCase outDir goldDir path =
         mkPretty :: IO ()
         mkPretty = mkSomething "-p" prettyPath
 
-        mkJSON :: IO ()
-        mkJSON = mkSomething "-j" jsonPath
-
         -- mkC :: FilePath -> IO ()
         -- mkC template = mkSomething (format ("-i FAKE_ID -f " % fp) template) (cPath template)
 
         mkGoldPretty :: TestTree
         mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
-
-        mkGoldJSON :: TestTree
-        mkGoldJSON = goldenVsFile testJSONName (encodeString jsonGoldPath) (encodeString jsonPath) mkJSON
 
         -- mkGoldC :: FilePath -> TestTree
         -- mkGoldC template = goldenVsFile (testCName template)
@@ -88,6 +78,7 @@ makeTestCase outDir goldDir path =
 
 main :: IO ()
 main = do
+    putStrLn ""
     tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase "test/out"         "test/gold"        ) list
     examples <- (testGroup "MLayout"  . concat) <$> fold (ls "mlayout"  >>= makeTestCase "test/out/mlayout" "test/gold/mlayout") list
 

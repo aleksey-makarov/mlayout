@@ -65,7 +65,7 @@ data Item w d
     = Item
         {   _location :: Location w
         ,   _name  :: Text
-        ,   _doc   :: Text
+        ,   _doc   :: Text -- FIXME: optional?
         ,   _body  :: d
         }
     deriving Show
@@ -87,6 +87,7 @@ wordP :: forall a m . (TokenParsing m, Errable m, Monad m, Num a, Integral a, Bo
 wordP = do
     v <- natural
     if v < toInteger (minBound :: a) || toInteger (maxBound :: a) < v
+        -- FIXME: in the error message use source number representation
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
@@ -118,7 +119,7 @@ fromToOrStartP :: Width w => Maybe Word -> Prsr (Location w)
 fromToOrStartP x = fromToP x <|> startP (fromWord <$> x)
 
 locationP :: Width w => (Word -> Location w) -> Prsr (Location w)
-locationP justOneWord = optional wordP >>= maybe (fromToOrStartP Nothing) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
+locationP justOneWord = optional wordP >>= maybe (fromToOrStartP Nothing <|> (return $ FromTo Nothing Nothing)) (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr BLocation
@@ -210,7 +211,7 @@ instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
 prettyItem :: (Pretty w, Pretty (Tree (Item w d))) => (Doc ann -> Doc ann) -> [Doc ann] -> Tree (Item w d) -> Doc ann
-prettyItem envelop prettyDataList (Node (Item l n d _) s) = envelop (envelop $ pretty l)
+prettyItem envelop prettyDataList (Node (Item l n d _) s) = envelop (pretty l)
                                    <+> pretty n
                                    <+> dquotes (pretty d)
                                    <+> if bodyIsEmpty then mempty else prettyBody

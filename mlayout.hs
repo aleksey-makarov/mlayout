@@ -6,9 +6,6 @@
 module Main (main) where
 
 import           Control.Monad.IO.Class
-import           Data.Aeson
-import           Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy as BL
 import           Data.Text
 -- import           Data.Text.Lazy.Encoding
 import           Data.Text.Prettyprint.Doc
@@ -27,7 +24,6 @@ import qualified Text.Trifecta.Result as TRI
 
 data OutputType
     = Pretty
-    | JSON
     | Format FilePath
     deriving Show
 
@@ -59,7 +55,7 @@ optsParser = MLayoutOptions
     <*> outputTypeParser
     <*> inOutSpecParser
         where
-            outputTypeParser = prettyOutputParser <|> jsonOutputParser <|> formatOutputParser
+            outputTypeParser = prettyOutputParser <|> formatOutputParser
             inOutSpecParser = singleInputFileParser -- <|> manyInputFilesParser
             idStringParser = optional (strOption
                 (  long "id"
@@ -71,11 +67,6 @@ optsParser = MLayoutOptions
                 (  long "pretty"
                 <> short 'p'
                 <> help "Pretty print"
-                )
-            jsonOutputParser = flag' JSON
-                (  long "json"
-                <> short 'j'
-                <> help "Format as json"
                 )
             formatOutputParser = Format <$> strOption
                 (  long "format"
@@ -116,7 +107,7 @@ opts = info (helper <*> optsParser)
     <> header "mlayout - transform memory layout files"
     <> progDesc
         (  "Transform input files in MLayout format into pretty printed MLayout files, "
-        ++ "JSON files, or TEMPLATE files processed by dhall engine. "
+        ++ "or TEMPLATE files processed by dhall engine. "
         ++ "The utility reads INPUT_FILE, processes it and outputs the result to OUTPUT_FILE_OR_DIR. "
 --        ++ "If OUTPUT_DIR is specified, all FILES will be processed at one pass and written to files in that directory. "
 --        ++ "The resulting files will have the same basename with suffix \'.mlayout\' changed to SUFFIX."
@@ -145,12 +136,6 @@ prettyPrint withFile' layout = withFile' f
         f :: Handle -> IO ()
         f h = hPutDoc h $ vcat $ fmap pretty layout
 
-printJSON :: ToJSON j => WithFile -> [j] -> IO ()
-printJSON withFile' j = withFile' f
-    where
-        f :: Handle -> IO ()
-        f h = BL.hPut h $ encodePretty $ toJSONList j
-
 fileExistsAndIsDir :: FilePath -> IO Bool
 fileExistsAndIsDir f = do
     e <- fileExist f
@@ -174,7 +159,6 @@ mlayout MLayoutOptions {..} = do
         prepareOuputAction :: IO (FilePath -> WithFile -> [ML.MLayout] -> IO ())
         prepareOuputAction = case outputTypeOpt of
             Pretty                  -> return (\ _ -> prettyPrint)
-            JSON                    -> return (\ _ -> printJSON)
             Format _templateFileName -> undefined
 
         parseFile :: FilePath -> IO [ML.MLayout]
@@ -187,7 +171,6 @@ mlayout MLayoutOptions {..} = do
         outSuffix :: String
         outSuffix = case outputTypeOpt of
             Pretty          -> "mlayout"
-            JSON            -> "json"
             Format template -> takeBaseName template
 
         prepareBatch :: IO [Task]

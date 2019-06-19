@@ -6,8 +6,8 @@
 
   # some more
   # comments
-  [4] NAMEXXX doc number four {
-    <6> NAMEXXXXX doc
+  [4] NAMEXXX "doc number four" {
+    <6> NAMEXXXXX "doc"
     =42 NAMEXXXXXX "doc"
   }
 }

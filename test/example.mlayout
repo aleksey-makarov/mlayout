@@ -1,85 +1,85 @@
 
 # Width inferred from the contents
-[] A %be Docs for A {
+[] A "Docs for A" {
 
   # Subarea
   # bytes 0-5
-  [] B1 Docs for B1 {
-    [%16]    ABC1
+  [] B1 "Docs for B1" {
+    [%16]    ABC1 "Docs for ABC1"
     # note "!" that prevents error for the 4-byte word that
     # is not aligned naturally
     # [%32@4!] ABC2 # FIXME: bring that ! back
-    [%32@4] ABC2
+    [%32@4] ABC2 "Docs for ABC1"
   }
 
   # Subarea that does not appear at the output
   # bytes 8-17
   # FIXME: [10@8] _ Docs for this hidden area
-  [10@8] TMP_ Docs for this hidden area
+  [10@8] TMP_ "Docs for this hidden area"
 
   # one byte at offset 18
-  [%8] B2 Docs for B2 {
+  [%8] "B2 Docs for B2" {
     # Values and bitfields can be mixed
-    =1     V1 Docs for V1
-    =0x2   V2 Docs for V2
-    =03    V3 Docs for V3
+    =1     V1 "Docs for V1"
+    =0x2   V2 "Docs for V2"
+    =03    V3 "Docs for V3"
     # FIXME: binary consts =0b100 V4 Docs for V4
 
-    <0:1> C1 Docs for C1
-    <3:2> C2 Docs for C2
-    <4>   C3 Docs for C3 {
+    <0:1> C1 "Docs for C1"
+    <3:2> C2 "Docs for C2"
+    <4>   C3 "Docs for C3" {
       =1 ENABLE Docs for ENABLE
     }
 
-    <5:7> C4 Docs for C4 {
-      <0> D1 Docs for D1
-      <1> D2 Docs for D2
+    <5:7> C4 "Docs for C4" {
+      <0> D1 "Docs for D1"
+      <1> D2 "Docs for D2"
     }
   }
 
   # one 4-byte word at offet 19
   # without "!" this unaligned word would cause an error
   # [%32!] B3 Docs for B3 { # FIXME: bring that ! back
-  [%32] B3 Docs for B3 {
-    <2@0>  E1 Docs for E1     # Two bits starting at 0
-    <2@>   E2 Docs for E2     # Two bits starting at the next free location
-    <4>    E3 Docs for E3     # 4th bit
-    <5:7>  E4 Docs for E4     # Bits 5..7
-    <10:8> E5 Docs for E5     # Bits 8..10
-    <>     E6 Docs for E6     # Bit 11 (inferred)
-    <>     E7 Docs for E7     # Bits 12..17 (inferred)
+  [%32] B3 "Docs for B3 {
+    <2@0>  E1 "Docs for E1"     # Two bits starting at 0
+    <2@>   E2 "Docs for E2"     # Two bits starting at the next free location
+    <4>    E3 "Docs for E3"     # 4th bit
+    <5:7>  E4 "Docs for E4"     # Bits 5..7
+    <10:8> E5 "Docs for E5"     # Bits 8..10
+    <>     E6 "Docs for E6"     # Bit 11 (inferred)
+    <>     E7 "Docs for E7"     # Bits 12..17 (inferred)
     {
-      <0:3> EE1 Docs for EE1
-      <4:5> EE2 Docs for EE2
+      <0:3> EE1 "Docs for EE1"
+      <4:5> EE2 "Docs for EE2"
     }
     <@{A, B, C}> E8           # 4 bits in each of 3 fields A, B, C
                               # at 18:21, 22:25 and 26:29
                               # width is inferred from the contents
     {
-      <0:3> X Docs for X
+      <0:3> X "Docs for X"
     }
   }
 
   # one 4-byte word at 0x44
-  [%32@0x44] B4 Docs for B4 {
-    <4@{D, E, F}> E1          Docs for E1
+  [%32@0x44] B4 "Docs for B4" {
+    <4@{D, E, F}> E1          "Docs for E1"
                               # 4 bits in each of 3 fields D, E, F
                               # at 0:3, 4:7, 8:11
                               # width is specified explicitly
-    <2@{14 G, 17 H, 19 I}> E2 Docs for E2
+    <2@{14 G, 17 H, 19 I}> E2 "Docs for E2"
                               # 2 bits in each of 3 fields G, H, I
                               # at 14:15, 17:18, 19:20
-    <@{J, K, 25 L}> E3        Docs for E3
+    <@{J, K, 25 L}> E3        "Docs for E3"
                               # 1 bit in each of 3 fields J K L
                               # at 21, 22, 25
   }
 
   # one 8-byte word at 0x48
-  [%64@0x48] B4 Docs for B4 {
-    <2@2[3 +4]> E1            Docs for E1
+  [%64@0x48] B4 "Docs for B4" {
+    <2@2[3 +4]> E1            "Docs for E1"
                               # 2 bits in each of 3 fields with step 4
                               # 2:3, 6:7, 10:11
-    <@12[4]> E2               Docs for E2
+    <@12[4]> E2               "Docs for E2"
                               # 1 bit in each of 4 fields
                               # 12:15
   }

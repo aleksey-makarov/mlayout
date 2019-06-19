@@ -19,7 +19,6 @@ library
     exposed-modules:     MLayout.Parser
     ghc-options:         -Wall
     build-depends:       base >= 4.9 && < 5
-                       , aeson
                        , containers
                        , formatting >= 6.3.6
                        , parsers >= 0.12.9
@@ -48,8 +47,6 @@ executable mlayout
     hs-source-dirs:      .
     main-is:             mlayout.hs
     build-depends:       base >= 4.9 && < 5
-                       , aeson
-                       , aeson-pretty
                        , ansi-wl-pprint
                        , bytestring
                        , mlayout
@@ -58,10 +55,10 @@ executable mlayout
                        , optparse-applicative
                        , prettyprinter
                        , text
-                       , time
-                       , timerep
+                       -- , time
+                       -- , timerep
                        , trifecta >= 2
-                       , turtle >= 1.5.10
+                       -- , turtle >= 1.5.10
                        , unix
     ghc-options:         -Wall -threaded
     default-language:    Haskell2010
