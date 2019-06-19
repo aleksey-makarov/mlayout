@@ -18,7 +18,6 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
--- import           Data.Aeson
 import           Data.Either
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
@@ -244,51 +243,6 @@ itemToList (Item w (StartSet ss) _ _ _) = LNE.toList $ fmap f ss
 itemToList (Item w (StartSetPeriodic first n step) _ _ _) = fmap f [0 .. n - 1]
     where
         f n' = let s' = first + n' * step in (s', s' + w)
--}
-
-{-
-jsonItem :: ToJSON b => Text -> Item b -> Value
-jsonItem t (Item w s n d b) = object [ "width"     .= w
-                                     , "start"     .= s
-                                     , "name"      .= n
-                                     , "docstring" .= d
-                                     , "children"  .= b
-                                     , "type"      .= t
-                                     ]
-
-instance ToJSON BitmapBody where
-    toJSON (BitmapBody valuesList bitmapItemList) = toJSONList $ fmap toJSON valuesList ++ fmap toJSON bitmapItemList
-
-instance ToJSON StartSet where
-    toJSON (StartSet positionsList) = toJSONList $ LNE.toList $ fmap positionToJSON positionsList
-        where
-            positionToJSON (w, n) = object [ "width" .= w
-                                           , "name"  .= n
-                                           ]
-    toJSON (StartSetPeriodic start n step) = object [ "start" .= start
-                                                    , "n"     .= n
-                                                    , "step"  .= step
-                                                    ]
-    toJSON (StartSet1 start) = toJSON start
-
-instance ToJSON BitmapItem where
-    toJSON = jsonItem "bitmap"
-
-instance ToJSON ValueItem where
-    toJSON (ValueItem v n d) = object [ "value"     .= v
-                                      , "name"      .= n
-                                      , "docstring" .= d
-                                      ]
-
-instance ToJSON LayoutBody where
-    toJSON (LayoutBody layoutItemList) = toJSONList layoutItemList
-    toJSON (LayoutBodyBitmap bitmapBody) = toJSON bitmapBody
-
-instance ToJSON LayoutItem where
-    toJSON x = jsonItem (case (_body x) of LayoutBody _ -> "layout" ; LayoutBodyBitmap _ -> "layout_bitmaps") x
-
--}
-{-
 
 bitmapBodyIsEmpty :: BitmapBody -> Bool
 bitmapBodyIsEmpty (BitmapBody [] []) = True
