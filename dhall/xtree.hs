@@ -50,8 +50,8 @@ anaM
   -> m t
 anaM g = a where a = (return . embed) <=< mapM a <=< g
 
-mkDirTreeCoalg :: FilePath -> IO (XTreeBase File Directory FilePath)
-mkDirTreeCoalg p = XTreeBase <$> (mapM f =<< listDirectory p)
+mkDirTreeCoalg :: FilePath -> IO (XTreeF File Directory FilePath)
+mkDirTreeCoalg p = XTreeF <$> (mapM f =<< listDirectory p)
         where
             f :: FilePath -> IO (Either File (Directory, FilePath))
             f p' = bool (Left p') (Right (p', pFull)) <$> doesDirectoryExist pFull
@@ -61,8 +61,8 @@ mkDirTreeCoalg p = XTreeBase <$> (mapM f =<< listDirectory p)
 mkDirTree :: FilePath -> IO DirectoryTree
 mkDirTree = anaM mkDirTreeCoalg
 
-prettyDirectoryTree :: XTreeBase File Directory (Doc ana) -> Doc ana
-prettyDirectoryTree (XTreeBase l) = vcat $ fmap f l
+prettyDirectoryTree :: XTreeF File Directory (Doc ana) -> Doc ana
+prettyDirectoryTree (XTreeF l) = vcat $ fmap f l
     where
         f :: Either File (Directory, Doc ana) -> Doc ana
         f (Left file) = dquotes (pretty file)

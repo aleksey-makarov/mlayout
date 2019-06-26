@@ -1,0 +1,4 @@
+  λ(l : Type)
+→ λ(n : Type)
+→ λ(a : Type)
+→ List < leaf : l | node : { node : n, subtrees : a } >

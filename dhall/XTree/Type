@@ -1,0 +1,5 @@
+let Mu/Type = ../Mu/Type
+
+let XTreeF = ../XTreeF/Type
+
+in  λ(l : Type) → λ(n : Type) → Mu/Type (XTreeF l n)
