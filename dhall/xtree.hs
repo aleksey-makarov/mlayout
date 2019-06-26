@@ -2,22 +2,31 @@
 {- stack script --resolver nightly-2019-06-21
     --package dhall
     --package directory
+    --package filepath
     --package prettyprinter
     --package recursion-schemes
     --package text
 -}
 
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
+import Control.Exception
 import Control.Monad
 import Data.Bool
 import Data.Functor.Foldable
-import Data.Text
 import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Util
 import System.Directory
+import System.Environment
+import System.FilePath
 
 import XTree
 
@@ -45,16 +54,30 @@ mkDirTreeCoalg :: FilePath -> IO (XTreeBase File Directory FilePath)
 mkDirTreeCoalg p = XTreeBase <$> (mapM f =<< listDirectory p)
         where
             f :: FilePath -> IO (Either File (Directory, FilePath))
-            f p = bool (Right (p, p)) (Left p) <$> doesDirectoryExist p
+            f p' = bool (Left p') (Right (p', pFull)) <$> doesDirectoryExist pFull
+                where
+                    pFull = p </> p'
 
 mkDirTree :: FilePath -> IO DirectoryTree
 mkDirTree = anaM mkDirTreeCoalg
 
 prettyDirectoryTree :: XTreeBase File Directory (Doc ana) -> Doc ana
-prettyDirectoryTree = undefined
+prettyDirectoryTree (XTreeBase l) = vcat $ fmap f l
+    where
+        f :: Either File (Directory, Doc ana) -> Doc ana
+        f (Left file) = dquotes (pretty file)
+        f (Right (dir, ddoc)) = dquotes (pretty dir) <+> braces (line <> indent 4 ddoc <> line)
 
 instance Pretty DirectoryTree where
     pretty = cata prettyDirectoryTree
 
+data CmdlineException = CmdlineException deriving (Exception, Show, Eq, Ord)
+
+main :: IO ()
 main = do
-    putStrLn "Hello world"
+
+    t <- getArgs >>= \ case
+        n : _ -> mkDirTree n
+        _ -> throwIO CmdlineException
+
+    putDocW 80 $ (pretty t <> line)
