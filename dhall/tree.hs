@@ -7,37 +7,33 @@
     --package text
 -}
 
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wall #-}
 
 import Prelude as P
 
 import Control.Exception
--- import Control.Monad
 import Data.Foldable
 import Data.Functor.Contravariant
--- import Data.Functor.Foldable
-import Data.List.NonEmpty as LNE
-import Data.Sequence as DS
 import Data.Text
 import Data.Tree
 import Dhall as D
 import Dhall.Core as DC
-import Dhall.Map as DM
-import Dhall.Parser
 import Dhall.Pretty
-import Dhall.TH
 import Dhall.TypeCheck
 import System.Directory.Tree as DirT
 import System.Environment
+
+import DhallExtra ()
 
 printTree :: Show a => Tree a -> IO ()
 printTree = printTreeOffset 0
@@ -52,69 +48,24 @@ printTree = printTreeOffset 0
 ----------------------------------------------------
 
 data DirEntry = AFile Text | OtherFile Text deriving Show
-
-injectDirEntry :: InputType DirEntry
-injectDirEntry = adapt >$< inputUnion
-  (   (inputConstructor "aFile" :: UnionInputType Text)
-  >|< (inputConstructor "otherFile" :: UnionInputType Text)
-  )
-  where
-    adapt (AFile t) = Left t
-    adapt (OtherFile t) = Right t
-
-instance Inject DirEntry where
-  injectWith _ = injectDirEntry
-
 data DirInfo = DirInfo Text [DirEntry] deriving Show
 
-injectDirInfo :: InputType DirInfo
-injectDirInfo =
-  inputRecord
+instance Inject DirEntry where
+  injectWith _ = adapt >$< inputUnion
+    (   (inputConstructor "aFile" :: UnionInputType Text)
+    >|< (inputConstructor "otherFile" :: UnionInputType Text)
+    )
+    where
+      adapt (AFile t) = Left t
+      adapt (OtherFile t) = Right t
+
+instance Inject DirInfo where
+  injectWith _ = inputRecord
     ( adapt >$< inputField "name"
             >*< inputField "dirEntries"
     )
-  where
-    adapt (DirInfo t es) = (t, es)
-
-instance Inject DirInfo where
-  injectWith _ = injectDirInfo
-
---    → λ(a : Type)
---    → λ(f : { data : dtype, subtrees : List a } → a)
---    → f { data = d, subtrees = List/map (Tree dtype) a (λ(tree : Tree dtype) → tree a f) children }
-
--- TODO: rewrite App as infix
-
-treeToDhall :: Expr Src X -> Expr Src X -> [Expr Src X] -> Expr Src X
-treeToDhall dtype d children =
-                    Lam "a" (Const DC.Type) $
-                    Lam "f" (Pi "_" (Record $ DM.fromList [("data", dtype), ("subtrees", App List (v "a"))]) (v "a")) $
-                    App (v "f") (RecordLit $ DM.fromList [("data", d), ("subtrees", s)])
-  where
-    v n = Var (V n 0)
-    f   = Lam "tree" (App (v "Tree") dtype) (App (App (v "tree") (v "a")) (v "f"))
-    s   = App (App (App (App (v "List/map") (App (v "Tree") dtype)) (v "a")) f) c'
-    c'  = ListLit (Just (App (v "Tree") dtype)) (DS.fromList children)
-
-appendLets :: Expr Src X -> Expr Src X
-appendLets e = Let (LNE.fromList [Binding "Tree" Nothing treeType, Binding "List/map" Nothing listMap]) e
-  where
-    treeType = $(staticDhallExpression "./Tree/Type")
-    listMap = $(staticDhallExpression "./List/map")
-
-instance Inject d => Inject (Tree d) where
-    injectWith options = InputType {..}
-      where
-        -- FIXME: add normalize
-        embed t = appendLets $ embed' t
-        embed' (Node d ns) = treeToDhall declaredIn (embedIn d) (fmap embed' ns)
-        -- ∀(a : Type) → ({ data : t, subtrees : List a } -> a) -> a
-        declared = Pi "a" (Const DC.Type) $ Pi "_" (Pi "_" (Record $ DM.fromList [("data", declaredIn), ("subtrees", (App List (v "a")))]) (v "a")) (v "a")
-        InputType embedIn declaredIn = injectWith options
-        v n = Var (V n 0)
-
--- data TreeF d a = TreeF { rootLabelF :: d, subForestF :: [a] } deriving (Functor, Show)
--- type MuTree d = Mu (TreeF d)
+    where
+      adapt (DirInfo t es) = (t, es)
 
 ----------------------------------------------------
 

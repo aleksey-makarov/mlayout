@@ -19,7 +19,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
 import Control.Exception
-import Control.Monad
 import Data.Bool
 import Data.Functor.Foldable
 import Data.Text.Prettyprint.Doc
@@ -28,27 +27,12 @@ import System.Directory
 import System.Environment
 import System.FilePath
 
+import DataFunctorFoldableExtra
 import XTree
 
 type File = FilePath
 type Directory = FilePath
 type DirectoryTree = XTree File Directory
-
--- | A monadic catamorphism
-cataM
-  :: (Recursive t, Traversable (Base t), Monad m)
-  => (Base t a -> m a) -- ^ a monadic (Base t)-algebra
-  -> t                 -- ^ fixed point
-  -> m a               -- ^ result
-cataM f = c where c = f <=< mapM c <=< (return . project)
-
--- | A monadic anamorphism
-anaM
-  :: (Corecursive t, Traversable (Base t), Monad m)
-  => (a -> m (Base t a))        -- ^ a monadic (Base t)-coalgebra
-  -> a                          -- ^ seed
-  -> m t
-anaM g = a where a = (return . embed) <=< mapM a <=< g
 
 mkDirTreeCoalg :: FilePath -> IO (XTreeF File Directory FilePath)
 mkDirTreeCoalg p = XTreeF <$> (mapM f =<< listDirectory p)
