@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver nightly-2019-06-21
+    --package containers
     --package dhall
     --package directory
     --package filepath

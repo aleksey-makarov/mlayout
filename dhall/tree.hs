@@ -2,7 +2,8 @@
 {- stack script --resolver nightly-2019-06-21
     --package containers
     --package dhall
-    --package directory-tree
+    --package directory
+    --package filepath
     --package recursion-schemes
     --package text
 -}
@@ -22,7 +23,8 @@
 import Prelude as P
 
 import Control.Exception
-import Data.Foldable
+import Data.Bool as DB
+import Data.Either
 import Data.Functor.Contravariant
 import Data.Text
 import Data.Tree
@@ -30,10 +32,12 @@ import Dhall as D
 import Dhall.Core as DC
 import Dhall.Pretty
 import Dhall.TypeCheck
-import System.Directory.Tree as DirT
+import System.Directory
 import System.Environment
+import System.FilePath
 
 import DhallExtra ()
+import DataFunctorFoldableExtra
 
 printTree :: Show a => Tree a -> IO ()
 printTree = printTreeOffset 0
@@ -69,35 +73,27 @@ instance Inject DirInfo where
 
 ----------------------------------------------------
 
+mkDirTreeCoalg :: FilePath -> IO (TreeF DirInfo FilePath)
+mkDirTreeCoalg p = do
+    (subdirs, files) <- partitionEithers <$> (mapM f =<< listDirectory p)
+    return $ TreeF (filesToDirInfo files) ((p </>) <$> subdirs)
+        where
+            f :: FilePath -> IO (Either FilePath FilePath)
+            f p' = DB.bool (Right p') (Left p') <$> doesDirectoryExist pFull
+                where
+                    pFull = p </> p'
+
+            filesToDirInfo :: [FilePath] -> DirInfo
+            -- FIXME: use futumorphism (?) to avoid the usage of takeFileName
+            filesToDirInfo fs = DirInfo (pack $ takeFileName p) (filePathToDirEntry <$> fs)
+
+            filePathToDirEntry :: FilePath -> DirEntry
+            filePathToDirEntry n@('a' : _) = AFile $ pack n
+            filePathToDirEntry n@('A' : _) = AFile $ pack n
+            filePathToDirEntry n           = OtherFile $ pack n
+
 mkDirTree :: FilePath -> IO (Tree DirInfo)
-mkDirTree filePath= do
-  _ :/ t <- readDirectoryWith f filePath
-  case t of
-    Failed _ e -> throwIO e
-    DirT.File _ _ -> throwIO NotDirException
-    Dir n l -> mkTree (pack n) l
-    where
-
-      mkTree :: Text -> [DirTree ()] -> IO (Tree DirInfo)
-      mkTree n l = do
-        (entries, subdirs) <- foldlM ff ([], []) l
-        return $ Node (DirInfo n entries) subdirs
-
-      f :: FilePath -> IO ()
-      f _ = return ()
-
-      ff :: ([DirEntry], [Tree DirInfo]) -> DirTree () -> IO ([DirEntry], [Tree DirInfo])
-      ff (entries, subdirs) = \ case
-        Failed _ e -> throwIO e
-        DirT.File n _ ->
-          let e = case n of
-                    'a' : _ -> AFile $ pack n
-                    'A' : _ -> AFile $ pack n
-                    _ -> OtherFile $ pack n
-          in return (e : entries, subdirs)
-        Dir n l -> do
-          t <- mkTree (pack n) l
-          return (entries, t : subdirs)
+mkDirTree = anaM mkDirTreeCoalg
 
 ----------------------------------------------------
 
