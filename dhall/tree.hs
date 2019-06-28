@@ -29,7 +29,6 @@ import Data.Functor.Contravariant
 import Data.Text
 import Data.Tree
 import Dhall as D
-import Dhall.Core as DC
 import Dhall.Pretty
 import Dhall.TypeCheck
 import System.Directory
@@ -127,10 +126,9 @@ main = do
   print $ prettyExpr tne
   putStrLn "-------------------------------"
   putStrLn "its type:"
-  print $ prettyExpr <$> (typeOf tne)
-  putStrLn "-------------------------------"
-  putStrLn "normalized:"
-  print $ prettyExpr $ normalize tne
+  case typeOf tne of
+    Right tt -> print $ prettyExpr tt
+    Left err -> print err
 
   -- test 3
   let te = embed (injectWith defaultInterpretOptions) t
@@ -139,10 +137,9 @@ main = do
   print $ prettyExpr te
   putStrLn "-------------------------------"
   putStrLn "directory tree type:"
-  print $ prettyExpr <$> (typeOf te)
-  putStrLn "-------------------------------"
-  putStrLn "directory tree normalized:"
-  print $ prettyExpr $ normalize te
+  case typeOf te of
+    Right tt -> print $ prettyExpr tt
+    Left err -> print err
 
   --test 4
   putStrLn "-------------------------------"
