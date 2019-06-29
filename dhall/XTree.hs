@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 
+{-# OPTIONS_GHC -Wall #-}
+
 module XTree where
 
 import Data.Functor.Foldable
