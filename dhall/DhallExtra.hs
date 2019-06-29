@@ -4,6 +4,7 @@
 
 module DhallExtra where
 
+import Data.Functor.Foldable
 import Data.List.NonEmpty as LNE
 import Data.Sequence as DS
 import Data.Tree
@@ -13,6 +14,8 @@ import Dhall.TH
 import Dhall.Map as DM
 import Dhall.Parser
 import Dhall.TypeCheck
+
+import DataFunctorFoldableExtra
 
 treeType = $(staticDhallExpression "./Tree/Type")
 treeToDhallExpression = $(staticDhallExpression "let Tree = ./Tree/Type \
@@ -33,8 +36,8 @@ treeToDhall dtype d children = App (App (App treeToDhallExpression dtype) d) chi
 instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
       where
-        embed = normalize . embed'
-        embed' (Node d ns) = treeToDhall declaredIn (embedIn d) (fmap embed' ns)
+        embed = normalize . cata embedAlg
+        embedAlg (TreeF d l) = treeToDhall declaredIn (embedIn d) l
         declared = normalize $ App treeType declaredIn
         InputType embedIn declaredIn = injectWith options
 
