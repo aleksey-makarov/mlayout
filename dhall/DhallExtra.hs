@@ -21,25 +21,19 @@ import DataFunctorFoldableExtra
 treeType :: Expr Src X
 treeType = $(staticDhallExpression "./Tree/Type")
 
--- treeSteppable = $(staticDhallExpression "./Tree/steppable")
-
-treeToDhallExpression :: Expr Src X
-treeToDhallExpression = $(staticDhallExpression "let Tree = ./Tree/Type \
-                                                \let List/map = ./List/map \
-                                                \in λ(dtype : Type) \
-                                                \ → λ(d : dtype) \
-                                                \ → λ(children : List (Tree dtype)) \
-                                                \ → λ(a : Type) \
-                                                \ → λ(f : { data : dtype, subtrees : List a } → a) \
-                                                \ → f { data = d, subtrees = List/map (Tree dtype) a (λ(tree : Tree dtype) → tree a f) children }"
-                        )
-
+treeEmbed :: Expr Src X
+treeEmbed = $(staticDhallExpression "let Tree = ./Tree/Type \
+                                    \in λ(dtype : Type) \
+                                    \ → λ(d : dtype) \
+                                    \ → λ(children : List (Tree dtype)) \
+                                    \ → ((./Tree/steppable dtype).embed { data = d, subtrees = children })"
+             )
 
 listToDhallList :: Expr Src X -> [Expr Src X] -> Expr Src X
 listToDhallList dtype dlist = ListLit (Just dtype) (DS.fromList dlist)
 
 treeToDhall :: Expr Src X -> Expr Src X -> [Expr Src X] -> Expr Src X
-treeToDhall dtype d children = App (App (App treeToDhallExpression dtype) d) (listToDhallList (App treeType dtype) children)
+treeToDhall dtype d children = App (App (App treeEmbed dtype) d) (listToDhallList (App treeType dtype) children)
 
 instance Inject d => Inject (Tree d) where
     injectWith options = InputType {..}
