@@ -12,16 +12,21 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 import Control.Exception
+import Dhall
+import Dhall.Pretty
+import Dhall.TypeCheck
 import Data.Bool
 import Data.Functor.Foldable
+import Data.Text
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Util
 import System.Directory
@@ -29,17 +34,18 @@ import System.Environment
 import System.FilePath
 
 import DataFunctorFoldableExtra
+import DhallExtra ()
 import XTree
 
-type File = FilePath
-type Directory = FilePath
+type File = Text
+type Directory = Text
 type DirectoryTree = XTree File Directory
 
 mkDirTreeCoalg :: FilePath -> IO (XTreeF File Directory FilePath)
 mkDirTreeCoalg p = XTreeF <$> (mapM f =<< listDirectory p)
         where
             f :: FilePath -> IO (Either File (Directory, FilePath))
-            f p' = bool (Left p') (Right (p', pFull)) <$> doesDirectoryExist pFull
+            f p' = Data.Bool.bool (Left $ pack p') (Right (pack p', pFull)) <$> doesDirectoryExist pFull
                 where
                     pFull = p </> p'
 
@@ -66,3 +72,25 @@ main = do
         _ -> throwIO CmdlineException
 
     putDocW 80 $ (pretty t <> line)
+
+    let te = Dhall.embed (injectWith defaultInterpretOptions) t
+    putStrLn "-------------------------------"
+    putStrLn "expression: "
+    print $ prettyExpr te
+    putStrLn "-------------------------------"
+    putStrLn "its type:"
+    either print (print . prettyExpr) (typeOf te)
+--    case typeOf te of
+--        Left err -> do
+--            putStrLn "Error"
+--            print err
+--        Right tt -> do
+--            putStrLn "Ok"
+--            print $ prettyExpr tt
+
+
+    (f :: DirectoryTree -> Text) <- input auto "./XTreeTest.dhall"
+
+    putStrLn "-------------------------------"
+    putStrLn "directory tree formatted with script:"
+    putStrLn $ unpack $ f t
