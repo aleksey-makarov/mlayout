@@ -17,18 +17,20 @@ let NonEmptyList/concat1 =
 let NonEmptyList/singleton =
       λ(t : Type) → λ(a : t) → { head = a, tail = [] : List t }
 
-in    λ(a : Type)
-    → λ(t : Tree a)
-    → t
-      (List (NonEmptyList a))
-      (   λ(n : TreeBase a (List (NonEmptyList a)))
-        → let appendThis =
-                λ(l : NonEmptyList a) → NonEmptyList/concat1 a n.data l
-          
-          in    [ NonEmptyList/singleton a n.data ]
-              # List/map
-                (NonEmptyList a)
-                (NonEmptyList a)
-                appendThis
-                (List/concat (NonEmptyList a) n.subtrees)
+in    (   λ(a : Type)
+        → λ(t : Tree a)
+        → t
+          (List (NonEmptyList a))
+          (   λ(n : TreeBase a (List (NonEmptyList a)))
+            → let appendThis =
+                    λ(l : NonEmptyList a) → NonEmptyList/concat1 a n.data l
+              
+              in    [ NonEmptyList/singleton a n.data ]
+                  # List/map
+                    (NonEmptyList a)
+                    (NonEmptyList a)
+                    appendThis
+                    (List/concat (NonEmptyList a) n.subtrees)
+          )
       )
+    : ∀(a : Type) → ∀(t : Tree a) → List (NonEmptyList a)
