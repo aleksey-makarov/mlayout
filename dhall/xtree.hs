@@ -73,7 +73,8 @@ main = do
 
     putDocW 80 $ (pretty t <> line)
 
-    let te = Dhall.embed (injectWith defaultInterpretOptions) t
+    let directoryTreeInputType = injectWith defaultInterpretOptions
+    let te = Dhall.embed directoryTreeInputType t
     putStrLn "-------------------------------"
     putStrLn "expression: "
     print $ prettyExpr te
@@ -88,6 +89,9 @@ main = do
 --            putStrLn "Ok"
 --            print $ prettyExpr tt
 
+    putStrLn "-------------------------------"
+    putStrLn "type of its type:"
+    either print (print . prettyExpr) (typeOf $ Dhall.declared $ directoryTreeInputType)
 
     (f :: DirectoryTree -> Text) <- input auto "./XTreeTest.dhall"
 

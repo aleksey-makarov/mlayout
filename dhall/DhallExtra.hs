@@ -85,6 +85,6 @@ instance (Inject l, Inject n) => Inject (XTree l n) where
         embedAlg (XTreeF l) = xtreeToDhall declaredL declaredN (eitherToDhall <$> l)
         declared = normalize $ App (App xtreeType declaredL) declaredN
         eitherToDhall (Left l) = App (App (App mkLeaf declaredL) declaredN) (embedL l)
-        eitherToDhall (Right (n, e)) = App (App (App (App mkLeaf declaredL) declaredN) (embedN n)) e
+        eitherToDhall (Right (n, e)) = App (App (App (App mkNode declaredL) declaredN) (embedN n)) e
         InputType embedL declaredL = injectWith options
         InputType embedN declaredN = injectWith options
