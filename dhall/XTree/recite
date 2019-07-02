@@ -34,12 +34,13 @@ in    (   λ(l : Type)
                       → let f =
                                 λ(nxx : mapOType)
                               → { head =
-                                    nxx.head # [ nx.node ]
+                                    [ nx.node ] # nxx.head
                                 , tail =
                                     nxx.tail
                                 }
                         
-                        in  List/map mapOType mapOType f nx.subtrees
+                        in    [ { head = [ nx.node ] : List n, tail = None l } ]
+                            # List/map mapOType mapOType f nx.subtrees
                   }
                   i
           

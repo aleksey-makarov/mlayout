@@ -1,7 +1,9 @@
 # set -x
 
+PATH="$PATH":~/.local/bin
+
 if [ -z $1 ] ; then
-    src=tree.dhall
+    src=XTreeTest.dhall
 else
     cd $(dirname "$1")
     src=$(basename "$1")
