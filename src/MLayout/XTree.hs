@@ -3,7 +3,7 @@
 
 {-# OPTIONS_GHC -Wall #-}
 
-module XTree where
+module MLayout.XTree where
 
 import Data.Functor.Foldable
 

@@ -17,12 +17,14 @@ library
     hs-source-dirs:      src
     build-depends:       base >= 3 && < 5
     exposed-modules:     MLayout.Parser
+    other-modules:       MLayout.XTree
     ghc-options:         -Wall
     build-depends:       base >= 4.9 && < 5
                        , containers
                        , formatting >= 6.3.6
                        , parsers >= 0.12.9
                        , prettyprinter
+                       , recursion-schemes
                        , text >= 1.2.3.0
                        , trifecta >= 2
                        , unordered-containers

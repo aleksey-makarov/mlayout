@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module MLayout.Parser
     ( MLayout
@@ -18,12 +19,14 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
-import           Data.Either
+import           Data.Functor.Foldable
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
+import qualified Data.Text.Prettyprint.Doc as PPD
+import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
 import           Data.Tree
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
@@ -34,8 +37,8 @@ import           Text.Parser.Token.Highlight
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
-import qualified Data.Text.Prettyprint.Doc as PPD
-import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
+
+import           MLayout.XTree
 
 class Width w where
     fromWord :: Word -> w
@@ -70,13 +73,9 @@ data Item w d
         }
     deriving Show
 
-type BData = [ValueItem]
+type BLayout = XTree ValueItem (Item Word ())
 
-type BLayout = Tree (Item Word BData)
-
-type MData = [BLayout]
-
-type MLayout = Tree (Item MWidth MData)
+type MLayout = Tree (Item MWidth BLayout)
 
 --------------------------------------------------------------------------------
 
@@ -149,25 +148,21 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = stringLiteral <?> "documentation string"
 
-bBodyP :: Prsr (BData, [BLayout])
-bBodyP = braces bBodyP' <|> return ([], [])
-    where
-        bBodyP' = partitionEithers <$> some (Left <$> valueItemP <|> Right <$> bLayoutP)
+bLayoutItemP :: Prsr (Item Word (), BLayout)
+bLayoutItemP = do
+    l <- bLocationP
+    n <- nameP
+    d <- docP
+    subitems <- braces bLayoutP <|> (return $ embed $ XTreeF [])
+    return (Item l n d (), subitems)
 
 bLayoutP :: Prsr BLayout
 bLayoutP = bLayoutP' <?> "bitmap item"
     where
-        bLayoutP' = do
-            l <- bLocationP
-            n <- nameP
-            d <- docP
-            (bdata, subtrees) <- bBodyP
-            return $ Node (Item l n d bdata) subtrees
+        bLayoutP' = embed . XTreeF <$> many (Left <$> valueItemP <|> Right <$> bLayoutItemP)
 
-mBodyP :: Prsr (MData, [MLayout])
-mBodyP = braces mBodyP' <|> return ([], [])
-    where
-        mBodyP' = partitionEithers <$> some (Left <$> bLayoutP <|> Right <$> mLayoutP)
+mBodyP :: Prsr (BLayout, [MLayout])
+mBodyP = braces ((,) <$> bLayoutP <*> some mLayoutP)
 
 mLayoutP :: Prsr MLayout
 mLayoutP = mLayoutP' <?> "memory layout item"
@@ -176,8 +171,8 @@ mLayoutP = mLayoutP' <?> "memory layout item"
             l <- mLocationP
             n <- nameP
             d <- docP
-            (mdata, subtrees) <- mBodyP
-            return $ Node (Item l n d mdata) subtrees
+            (blayout, subtrees) <- mBodyP
+            return $ Node (Item l n d blayout) subtrees
 
 --------------------------------------------------------------------------------
 
@@ -196,7 +191,7 @@ prettyMaybe Nothing = mempty
 instance Pretty w => Pretty (Location w) where
     -- FromTo (Maybe Word) (Maybe Word)
     pretty (FromTo mf mt) = prettyMaybe mf <> ":" <> prettyMaybe mt
-     -- WordNext w
+    -- WordNext w
     pretty (WordNext w) = pretty w <> "@"
     -- Word (Maybe w) Word
     pretty (Word mw at) = prettyMaybe mw <> "@" <> pretty at
@@ -210,21 +205,27 @@ instance Pretty w => Pretty (Location w) where
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-prettyItem :: (Pretty w, Pretty (Tree (Item w d))) => (Doc ann -> Doc ann) -> [Doc ann] -> Tree (Item w d) -> Doc ann
-prettyItem envelop prettyDataList (Node (Item l n d _) s) = envelop (pretty l)
-                                   <+> pretty n
-                                   <+> dquotes (pretty d)
-                                   <+> if bodyIsEmpty then mempty else prettyBody
-    where
-        bodyIsEmpty = case (prettyDataList, s) of ([], []) -> True ; _ -> False
-        prettyBody = PPD.braces (line <> indent 4 (PPD.vsep (prettyDataList ++ fmap pretty s)) <> line)
-
+xTreeIsEmpty :: XTree l n -> Bool
+xTreeIsEmpty (project -> XTreeF []) = True
+xTreeIsEmpty _ = False
 
 instance Pretty BLayout where
-    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.angles (fmap pretty b) i
+    pretty (project -> XTreeF ls) = PPD.vsep $ fmap prettyl ls
+        where
+            prettyl (Left valueItem) = pretty valueItem
+            prettyl (Right (Item l n d (), subtree)) = PPD.angles (pretty l)
+                                   <+> pretty n
+                                   <+> dquotes (pretty d)
+                                   <+> if xTreeIsEmpty subtree then mempty else prettyBody subtree
+            prettyBody subtree = PPD.braces (line <> indent 4 (pretty subtree) <> line)
 
 instance Pretty MLayout where
-    pretty i@(Node (Item _ _ _ b) _) = prettyItem PPD.brackets (fmap pretty b) i
+    pretty (Node (Item l n d b) s) = PPD.brackets (pretty l)
+                                   <+> pretty n
+                                   <+> dquotes (pretty d)
+                                   <+> if xTreeIsEmpty b then mempty else prettyBody
+        where
+            prettyBody = PPD.braces (line <> indent 4 ((pretty b) <> line <> PPD.vsep (fmap pretty s)) <> line)
 
 --------------------------------------------------------------------------------
 
