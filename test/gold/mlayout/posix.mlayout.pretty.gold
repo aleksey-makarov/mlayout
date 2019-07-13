@@ -1,7 +1,7 @@
-[1@0] POSIX_PERMISSIONS "POSIX permissions" {
-    <3@{0 OTH, 6 GRP, 3 USR}> I "" {
-        <1@0> X "Execute" 
-        <1@1> W "Write" 
-        <1@2> R "Read" 
+[:] POSIX_PERMISSIONS "POSIX permissions" {
+    <3@{ OTH,  GRP,  USR}> I "" {
+        <@0> X "Execute"
+        <@1> W "Write"
+        <@2> R "Read"
     }
 }

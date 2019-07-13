@@ -18,7 +18,7 @@
   [10@8] TMP_ "Docs for this hidden area"
 
   # one byte at offset 18
-  [%8] "B2 Docs for B2" {
+  [%8] B2 "Docs for B2" {
     # Values and bitfields can be mixed
     =1     V1 "Docs for V1"
     =0x2   V2 "Docs for V2"
@@ -28,7 +28,7 @@
     <0:1> C1 "Docs for C1"
     <3:2> C2 "Docs for C2"
     <4>   C3 "Docs for C3" {
-      =1 ENABLE Docs for ENABLE
+      =1 ENABLE "Docs for ENABLE"
     }
 
     <5:7> C4 "Docs for C4" {
@@ -40,7 +40,7 @@
   # one 4-byte word at offet 19
   # without "!" this unaligned word would cause an error
   # [%32!] B3 Docs for B3 { # FIXME: bring that ! back
-  [%32] B3 "Docs for B3 {
+  [%32] B3 "Docs for B3" {
     <2@0>  E1 "Docs for E1"     # Two bits starting at 0
     <2@>   E2 "Docs for E2"     # Two bits starting at the next free location
     <4>    E3 "Docs for E3"     # 4th bit
@@ -52,7 +52,7 @@
       <0:3> EE1 "Docs for EE1"
       <4:5> EE2 "Docs for EE2"
     }
-    <@{A, B, C}> E8           # 4 bits in each of 3 fields A, B, C
+    <@{A, B, C}> E8 ""        # 4 bits in each of 3 fields A, B, C
                               # at 18:21, 22:25 and 26:29
                               # width is inferred from the contents
     {

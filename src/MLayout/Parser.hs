@@ -25,14 +25,13 @@ import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-import qualified Data.Text.Prettyprint.Doc as PPD
-import           Data.Text.Prettyprint.Doc hiding (angles, braces, brackets)
+import           Data.Text.Prettyprint.Doc as PPD
 import           Data.Tree
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
-import           Text.Parser.Token
+import           Text.Parser.Token as TPT
 import           Text.Parser.Token.Highlight
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
@@ -75,6 +74,9 @@ data Item w d
 
 type BLayout = XTree ValueItem (Item Word ())
 
+bLayoutEmpty :: BLayout
+bLayoutEmpty = embed $ XTreeF []
+
 type MLayout = Tree (Item MWidth BLayout)
 
 --------------------------------------------------------------------------------
@@ -95,17 +97,17 @@ startArrayP maybeWidth maybeStart = Periodic maybeWidth maybeStart <$> wordP <*>
 
 -- [..@12[]], [..@12]
 startArrayWithPositionP :: Maybe w -> Word -> Prsr (Location w)
-startArrayWithPositionP maybeWidth start = brackets (startArrayP maybeWidth (Just start)) <|> return (Word maybeWidth start)
+startArrayWithPositionP maybeWidth start = TPT.brackets (startArrayP maybeWidth (Just start)) <|> return (Word maybeWidth start)
 
 startArrayNoPositionP :: Maybe w -> Prsr (Location w)
-startArrayNoPositionP maybeWidth = brackets (startArrayP maybeWidth Nothing)
+startArrayNoPositionP maybeWidth = TPT.brackets (startArrayP maybeWidth Nothing)
 
 -- [..@12[34 + 56]] <> [..@12]
 startArrayOrSimpleP :: Maybe w -> Prsr (Location w)
 startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP >>= (startArrayWithPositionP maybeWidth))
 
 startSetP :: Maybe w -> Prsr (Location w)
-startSetP firstMaybeWord = Fields firstMaybeWord <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+startSetP firstMaybeWord = Fields firstMaybeWord <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
 startP :: Maybe w -> Prsr (Location w)
 startP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
@@ -122,7 +124,7 @@ locationP justOneWord = optional wordP >>= maybe (fromToOrStartP Nothing <|> (re
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr BLocation
-bLocationP = angles (locationP (\x -> Word Nothing x)) <?> "bitfield location"
+bLocationP = TPT.angles (locationP (\x -> Word Nothing x)) <?> "bitfield location"
 
 mWidthP :: Prsr MWidth
 mWidthP = token (char '%' *> (  W8   <$ string "8"
@@ -137,7 +139,7 @@ mWordP = mWidthP >>= (\x -> startP (Just x) <|> (return (WordNext x)))
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mLocationP :: Prsr MLocation
-mLocationP = brackets (mWordP <|> (locationP (\x -> WordNext (W x)))) <?> "memory layout location"
+mLocationP = TPT.brackets (mWordP <|> (locationP (\x -> WordNext (W x)))) <?> "memory layout location"
 
 valueItemP :: Prsr ValueItem
 valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
@@ -153,7 +155,7 @@ bLayoutItemP = do
     l <- bLocationP
     n <- nameP
     d <- docP
-    subitems <- braces bLayoutP <|> (return $ embed $ XTreeF [])
+    subitems <- TPT.braces bLayoutP <|> return bLayoutEmpty
     return (Item l n d (), subitems)
 
 bLayoutP :: Prsr BLayout
@@ -162,7 +164,7 @@ bLayoutP = bLayoutP' <?> "bitmap item"
         bLayoutP' = embed . XTreeF <$> many (Left <$> valueItemP <|> Right <$> bLayoutItemP)
 
 mBodyP :: Prsr (BLayout, [MLayout])
-mBodyP = braces ((,) <$> bLayoutP <*> some mLayoutP)
+mBodyP = TPT.braces ((,) <$> bLayoutP <*> many mLayoutP)
 
 mLayoutP :: Prsr MLayout
 mLayoutP = mLayoutP' <?> "memory layout item"
@@ -171,7 +173,7 @@ mLayoutP = mLayoutP' <?> "memory layout item"
             l <- mLocationP
             n <- nameP
             d <- docP
-            (blayout, subtrees) <- mBodyP
+            (blayout, subtrees) <- mBodyP <|> return (bLayoutEmpty, [])
             return $ Node (Item l n d blayout) subtrees
 
 --------------------------------------------------------------------------------
@@ -210,22 +212,26 @@ xTreeIsEmpty (project -> XTreeF []) = True
 xTreeIsEmpty _ = False
 
 instance Pretty BLayout where
-    pretty (project -> XTreeF ls) = PPD.vsep $ fmap prettyl ls
+    pretty (project -> XTreeF ls) = PPD.vsep $ fmap (either prettyl prettyr) ls
         where
-            prettyl (Left valueItem) = pretty valueItem
-            prettyl (Right (Item l n d (), subtree)) = PPD.angles (pretty l)
-                                   <+> pretty n
-                                   <+> dquotes (pretty d)
-                                   <+> if xTreeIsEmpty subtree then mempty else prettyBody subtree
-            prettyBody subtree = PPD.braces (line <> indent 4 (pretty subtree) <> line)
+            prettyl = pretty
+            prettyr (Item l n d (), subtree) = prettySpec <> prettyBody
+                where
+                    prettySpec = PPD.angles (pretty l) <+> pretty n <+> dquotes (pretty d)
+                    prettyBody = if xTreeIsEmpty subtree
+                                     then mempty
+                                     else PPD.space <> PPD.braces (line <> indent 4 (pretty subtree) <> line)
 
 instance Pretty MLayout where
-    pretty (Node (Item l n d b) s) = PPD.brackets (pretty l)
-                                   <+> pretty n
-                                   <+> dquotes (pretty d)
-                                   <+> if xTreeIsEmpty b then mempty else prettyBody
+    pretty (Node (Item l n d b) s) = prettySpec <> prettyBody
         where
-            prettyBody = PPD.braces (line <> indent 4 ((pretty b) <> line <> PPD.vsep (fmap pretty s)) <> line)
+            prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d) 
+            prettyBody = if xTreeIsEmpty b && P.null s
+                             then mempty
+                             else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep (fmap pretty s)) <> line)
+            sepbm = if xTreeIsEmpty b || P.null s
+                        then mempty
+                        else line
 
 --------------------------------------------------------------------------------
 

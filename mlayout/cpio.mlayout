@@ -1,30 +1,30 @@
-[] CPIO Cpio header {
-  [%16] MAGIC The magic value {
-    =070707  SAME_ENDIANNESS  Same endianness
-    =0143561 OTHER_ENDIANNESS Opposite endianness
+[] CPIO "Cpio header" {
+  [%16] MAGIC "The magic value" {
+    =070707  SAME_ENDIANNESS  "Same endianness"
+    =0143561 OTHER_ENDIANNESS "Opposite endianness"
   }
-  [%16] DEV  The device number from the disk
-  [%16] INO  The inode number from the disk
-  [%16] MODE Regular permissions and the file type {
-    <15:12> FILETYPE File type bits {
-      =014 SOCKET           Socket
-      =012 SYMBOLIC_LINK    Symbolic link
-      =010 REGULAR_FILE     Regular file
-      =006 BLOCK_DEVICE     Block special device
-      =004 DIRECTORY        Directory
-      =002 CHARACTER_DEVICE Character special device
-      =001 PIPE             Named pipe or FIFO
+  [%16] DEV  "The device number from the disk"
+  [%16] INO  "The inode number from the disk"
+  [%16] MODE "Regular permissions and the file type" {
+    <15:12> FILETYPE "File type bits" {
+      =014 SOCKET           "Socket"
+      =012 SYMBOLIC_LINK    "Symbolic link"
+      =010 REGULAR_FILE     "Regular file"
+      =006 BLOCK_DEVICE     "Block special device"
+      =004 DIRECTORY        "Directory"
+      =002 CHARACTER_DEVICE "Character special device"
+      =001 PIPE             "Named pipe or FIFO"
     }
-    <11>  SUID        SUID bit
-    <10>  SGID        SGID bit
-    <9>   STICKY      Sticky bit
-    <8:0> PERMISSIONS Posix permissions
+    <11>  SUID        "SUID bit"
+    <10>  SGID        "SGID bit"
+    <9>   STICKY      "Sticky bit"
+    <8:0> PERMISSIONS "Posix permissions"
   }
-  [%16] UID      The numeric user id of the owner
-  [%16] GID      The numeric group id of the owner
-  [%16] NLINK    The number of links to this file
-  [%16] RDEV     The associated device number
-  [%32] MTIME    The modification time of the file
-  [%16] NAMESIZE The number of bytes in the pathname that follows the header
-  [%32] FILESIZE The size of the file
+  [%16] UID      "The numeric user id of the owner"
+  [%16] GID      "The numeric group id of the owner"
+  [%16] NLINK    "The number of links to this file"
+  [%16] RDEV     "The associated device number"
+  [%32] MTIME    "The modification time of the file"
+  [%16] NAMESIZE "The number of bytes in the pathname that follows the header"
+  [%32] FILESIZE "The size of the file"
 }
