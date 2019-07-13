@@ -37,7 +37,7 @@ import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
-import           MLayout.XTree
+import           MLayout.XTree as XTree
 
 class Width w where
     fromWord :: Word -> w
@@ -73,9 +73,6 @@ data Item w d
     deriving Show
 
 type BLayout = XTree ValueItem (Item Word ())
-
-bLayoutEmpty :: BLayout
-bLayoutEmpty = embed $ XTreeF []
 
 type MLayout = Tree (Item MWidth BLayout)
 
@@ -155,7 +152,7 @@ bLayoutItemP = do
     l <- bLocationP
     n <- nameP
     d <- docP
-    subitems <- TPT.braces bLayoutP <|> return bLayoutEmpty
+    subitems <- TPT.braces bLayoutP <|> return XTree.empty
     return (Item l n d (), subitems)
 
 bLayoutP :: Prsr BLayout
@@ -173,7 +170,7 @@ mLayoutP = mLayoutP' <?> "memory layout item"
             l <- mLocationP
             n <- nameP
             d <- docP
-            (blayout, subtrees) <- mBodyP <|> return (bLayoutEmpty, [])
+            (blayout, subtrees) <- mBodyP <|> return (XTree.empty, [])
             return $ Node (Item l n d blayout) subtrees
 
 --------------------------------------------------------------------------------
@@ -207,10 +204,6 @@ instance Pretty w => Pretty (Location w) where
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-xTreeIsEmpty :: XTree l n -> Bool
-xTreeIsEmpty (project -> XTreeF []) = True
-xTreeIsEmpty _ = False
-
 instance Pretty BLayout where
     pretty (project -> XTreeF ls) = PPD.vsep $ fmap (either prettyl prettyr) ls
         where
@@ -218,7 +211,7 @@ instance Pretty BLayout where
             prettyr (Item l n d (), subtree) = prettySpec <> prettyBody
                 where
                     prettySpec = PPD.angles (pretty l) <+> pretty n <+> dquotes (pretty d)
-                    prettyBody = if xTreeIsEmpty subtree
+                    prettyBody = if XTree.null subtree
                                      then mempty
                                      else PPD.space <> PPD.braces (line <> indent 4 (pretty subtree) <> line)
 
@@ -226,10 +219,10 @@ instance Pretty MLayout where
     pretty (Node (Item l n d b) s) = prettySpec <> prettyBody
         where
             prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d) 
-            prettyBody = if xTreeIsEmpty b && P.null s
+            prettyBody = if XTree.null b && P.null s
                              then mempty
                              else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep (fmap pretty s)) <> line)
-            sepbm = if xTreeIsEmpty b || P.null s
+            sepbm = if XTree.null b || P.null s
                         then mempty
                         else line
 
