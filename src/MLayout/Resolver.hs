@@ -1,4 +1,19 @@
-module MLayout.Resolver () where
+
+module MLayout.Resolver
+    ( Location (..)
+    , resolve
+    ) where
+
+data Location
+    = FromTo Word Word                    -- [a:b], a is the first, b is the maximum, not upper bound
+    | Fields Word (NonEmpty (Word, Text)) -- [@{A, B, C}], [%12@{12 A, 34 B}] means width and the non-empty list of fields
+    | Periodic Word Word Word Word        -- [1@2[3 +4]] means width, start, number of items (>= 2), step
+    deriving Show
+
+import Parser as P
+
+resolve :: P.MLayout -> MLayout
+resolve = undefined
 
 {-
 -- FIXME: use this for itemToList
