@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 library
     hs-source-dirs:      src
     build-depends:       base >= 3 && < 5
-    exposed-modules:     MLayout.Parser
+    exposed-modules:     MLayout.Parser MLayout.Resolver
     other-modules:       MLayout.XTree MLayout.DataFunctorFoldableExtra
     ghc-options:         -Wall
     build-depends:       base >= 4.9 && < 5

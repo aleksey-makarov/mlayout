@@ -12,7 +12,15 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module MLayout.Parser
-    ( MLayout
+    ( Width
+    , MWidth
+    , Location
+    , BLocation
+    , MLocation
+    , ValueItem
+    , Item
+    , BLayout
+    , MLayout
     , parser
     ) where
 
@@ -64,18 +72,18 @@ type BLocation = Location Word  -- just Word
 
 data ValueItem = ValueItem Integer Text Text deriving Show   -- = value, name, doc
 
-data Item w d
+data Item l d
     = Item
-        {   _location :: Location w
+        {   _location :: l
         ,   _name  :: Text
         ,   _doc   :: Text -- FIXME: optional?
         ,   _body  :: d
         }
     deriving Show
 
-type BLayout = XTree ValueItem (Item Word ())
+type BLayout = XTree ValueItem (Item BLocation ())
 
-type MLayout = Tree (Item MWidth BLayout)
+type MLayout = Tree (Item MLocation BLayout)
 
 --------------------------------------------------------------------------------
 
@@ -148,7 +156,7 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = stringLiteral <?> "documentation string"
 
-bLayoutItemP :: Prsr (Item Word (), BLayout)
+bLayoutItemP :: Prsr (Item BLocation (), BLayout)
 bLayoutItemP = do
     l <- bLocationP
     n <- nameP
@@ -205,7 +213,7 @@ instance Pretty w => Pretty (Location w) where
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-prettyBLayoutAlg :: XTreeF ValueItem (Item Word ()) (BLayout, Doc ann) -> Doc ann
+prettyBLayoutAlg :: XTreeF ValueItem (Item BLocation ()) (BLayout, Doc ann) -> Doc ann
 prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
     where
         prettyr (Item l n d (), (subtree, subtreeFormatted)) = prettySpec <> prettyBody
@@ -218,7 +226,7 @@ prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
 instance Pretty BLayout where
     pretty = para prettyBLayoutAlg
 
-prettyMLayoutAlg :: TreeF (Item MWidth BLayout) (Doc ann) -> Doc ann
+prettyMLayoutAlg :: TreeF (Item MLocation BLayout) (Doc ann) -> Doc ann
 prettyMLayoutAlg (TreeF (Item l n d b) s) = prettySpec <> prettyBody
     where
         prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d)

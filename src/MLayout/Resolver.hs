@@ -1,8 +1,17 @@
 
 module MLayout.Resolver
     ( Location (..)
+    , BLayout
+    , MLayout
     , resolve
     ) where
+
+import           Data.List.NonEmpty
+import           Data.Text
+import           Data.Tree
+
+import qualified MLayout.Parser as P
+import           MLayout.XTree
 
 data Location
     = FromTo Word Word                    -- [a:b], a is the first, b is the maximum, not upper bound
@@ -10,7 +19,9 @@ data Location
     | Periodic Word Word Word Word        -- [1@2[3 +4]] means width, start, number of items (>= 2), step
     deriving Show
 
-import Parser as P
+type BLayout = XTree P.ValueItem (P.Item Location ())
+
+type MLayout = Tree (P.Item Location BLayout)
 
 resolve :: P.MLayout -> MLayout
 resolve = undefined

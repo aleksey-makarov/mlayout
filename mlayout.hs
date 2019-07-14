@@ -12,7 +12,6 @@ import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 -- import           Data.Time.LocalTime
 -- import           Data.Time.RFC822
-import qualified MLayout.Parser as ML
 import           Options.Applicative
 import           System.Exit
 import           System.FilePath
@@ -22,8 +21,12 @@ import qualified Text.PrettyPrint.ANSI.Leijen as TPP
 import qualified Text.Trifecta.Parser as TRI
 import qualified Text.Trifecta.Result as TRI
 
+import qualified MLayout.Parser as MLP
+import qualified MLayout.Resolver as MLR
+
 data OutputType
     = Pretty
+    | PrettyResolved
     | Format FilePath
     deriving Show
 
@@ -41,8 +44,7 @@ data InOutSpecification
 
 data MLayoutOptions
     = MLayoutOptions
-        { idStringOpt :: Maybe Text
-        , outputTypeOpt :: OutputType
+        { outputTypeOpt :: OutputType
         , inOutOpt  :: InOutSpecification
         }
 
@@ -51,22 +53,20 @@ data MLayoutOptions
 -- FIXME: "-d -" should specify output to stdout
 optsParser :: Parser MLayoutOptions
 optsParser = MLayoutOptions
-    <$> idStringParser
-    <*> outputTypeParser
+    <$> outputTypeParser
     <*> inOutSpecParser
         where
-            outputTypeParser = prettyOutputParser <|> formatOutputParser
+            outputTypeParser = prettyOutputParser <|> prettyResolvedOutputParser <|> formatOutputParser
             inOutSpecParser = singleInputFileParser -- <|> manyInputFilesParser
-            idStringParser = optional (strOption
-                (  long "id"
-                <> short 'i'
-                <> metavar "ID_STRING"
-                <> help "ID string to use in the result's header"
-                ))
             prettyOutputParser = flag' Pretty
                 (  long "pretty"
                 <> short 'p'
                 <> help "Pretty print"
+                )
+            prettyResolvedOutputParser = flag' PrettyResolved
+                (  long "pretty-resolved"
+                <> short 'P'
+                <> help "Pretty print resolved tree"
                 )
             formatOutputParser = Format <$> strOption
                 (  long "format"
@@ -156,13 +156,14 @@ mlayout MLayoutOptions {..} = do
     -- idString <- maybe mkIdString return idStringOpt
 
     let
-        prepareOuputAction :: IO (FilePath -> WithFile -> [ML.MLayout] -> IO ())
+        prepareOuputAction :: IO (FilePath -> WithFile -> [MLP.MLayout] -> IO ())
         prepareOuputAction = case outputTypeOpt of
-            Pretty                  -> return (\ _ -> prettyPrint)
+            Pretty                   -> return (\ _ -> prettyPrint)
+            PrettyResolved           -> undefined -- @m
             Format _templateFileName -> undefined
 
-        parseFile :: FilePath -> IO [ML.MLayout]
-        parseFile inFile = TRI.parseFromFileEx ML.parser inFile >>= \ case
+        parseFile :: FilePath -> IO [MLP.MLayout]
+        parseFile inFile = TRI.parseFromFileEx MLP.parser inFile >>= \ case
             TRI.Success ok -> return ok
             TRI.Failure xs  -> do
                 liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
@@ -171,6 +172,7 @@ mlayout MLayoutOptions {..} = do
         outSuffix :: String
         outSuffix = case outputTypeOpt of
             Pretty          -> "mlayout"
+            PrettyResolved  -> "mlayout"
             Format template -> takeBaseName template
 
         prepareBatch :: IO [Task]
