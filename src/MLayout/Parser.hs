@@ -38,6 +38,7 @@ import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
 import           MLayout.XTree as XTree
+import           MLayout.DataFunctorFoldableExtra
 
 class Width w where
     fromWord :: Word -> w
@@ -204,27 +205,32 @@ instance Pretty w => Pretty (Location w) where
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
+prettyBLayoutAlg :: XTreeF ValueItem (Item Word ()) (BLayout, Doc ann) -> Doc ann
+prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
+    where
+        prettyr (Item l n d (), (subtree, subtreeFormatted)) = prettySpec <> prettyBody
+            where
+                prettySpec = PPD.angles (pretty l) <+> pretty n <+> dquotes (pretty d)
+                prettyBody = if XTree.null subtree
+                                 then mempty
+                                 else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
+
 instance Pretty BLayout where
-    pretty (project -> XTreeF ls) = PPD.vsep $ fmap (either prettyl prettyr) ls
-        where
-            prettyl = pretty
-            prettyr (Item l n d (), subtree) = prettySpec <> prettyBody
-                where
-                    prettySpec = PPD.angles (pretty l) <+> pretty n <+> dquotes (pretty d)
-                    prettyBody = if XTree.null subtree
-                                     then mempty
-                                     else PPD.space <> PPD.braces (line <> indent 4 (pretty subtree) <> line)
+    pretty = para prettyBLayoutAlg
+
+prettyMLayoutAlg :: TreeF (Item MWidth BLayout) (Doc ann) -> Doc ann
+prettyMLayoutAlg (TreeF (Item l n d b) s) = prettySpec <> prettyBody
+    where
+        prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d)
+        prettyBody = if XTree.null b && P.null s
+                         then mempty
+                         else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep s) <> line)
+        sepbm = if XTree.null b || P.null s
+                    then mempty
+                    else line
 
 instance Pretty MLayout where
-    pretty (Node (Item l n d b) s) = prettySpec <> prettyBody
-        where
-            prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d) 
-            prettyBody = if XTree.null b && P.null s
-                             then mempty
-                             else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep (fmap pretty s)) <> line)
-            sepbm = if XTree.null b || P.null s
-                        then mempty
-                        else line
+    pretty = cata prettyMLayoutAlg
 
 --------------------------------------------------------------------------------
 
