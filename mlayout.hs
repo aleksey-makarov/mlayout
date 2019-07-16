@@ -78,19 +78,22 @@ opts = info (helper <*> optsParser)
 prettyPrint :: Pretty p => [p] -> Handle -> IO ()
 prettyPrint layout h = hPutDoc h $ vcat $ fmap pretty layout
 
-mlayout :: MLayoutOptions -> IO ()
-mlayout MLayoutOptions {..} = case outputTypeOpt of
+mlayout :: MLayoutOptions -> ((Handle -> IO ()) -> IO ()) -> IO ()
+mlayout MLayoutOptions {..} withOutputHandle = case outputTypeOpt of
     Pretty -> do
         parsed <- TRI.parseFromFileEx MLP.parser inFile >>= \ case
             TRI.Success ok -> return ok
             TRI.Failure xs  -> do
                 liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
                 exitWith $ ExitFailure 1
-        maybe (prettyPrint parsed stdout) (\ x -> withFile x WriteMode $ prettyPrint parsed) outFile
-
+        withOutputHandle $ prettyPrint parsed
     PrettyResolved -> undefined
     Format _ -> undefined
 
+mlayout' :: MLayoutOptions -> IO ()
+mlayout' options@(MLayoutOptions {..}) = case outFile of
+    Just outf -> mlayout options (withFile outf WriteMode)
+    Nothing -> mlayout options (\ f -> f stdout)
 
 main :: IO ()
-main = execParser opts >>= mlayout
+main = execParser opts >>= mlayout'
