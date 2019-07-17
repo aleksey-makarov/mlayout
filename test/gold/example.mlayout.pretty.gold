@@ -29,7 +29,7 @@
             <0:3> EE1 "Docs for EE1"
             <4:5> EE2 "Docs for EE2"
         }
-        <@{ A,  B,  C}> E8 "" {
+        <@{ A,  B,  C}> E8 {
             <0:3> X "Docs for X"
         }
     }

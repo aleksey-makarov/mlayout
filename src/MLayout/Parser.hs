@@ -154,7 +154,7 @@ nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier) <?> "id"
 
 docP :: Prsr Text
-docP = stringLiteral <?> "documentation string"
+docP = (stringLiteral <|> return "") <?> "documentation string"
 
 bLayoutItemP :: Prsr (Item BLocation (), BLayout)
 bLayoutItemP = do
@@ -212,6 +212,11 @@ instance Pretty w => Pretty (Location w) where
         where
             appendStep w = PPD.space <> "+" <> pretty w
 
+prettyDoc :: Text -> Doc ann
+prettyDoc t = if Data.Text.null t
+                  then mempty
+                  else PPD.space <> dquotes (pretty t)
+
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
@@ -220,7 +225,7 @@ prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
     where
         prettyr (Item l n d (), (subtree, subtreeFormatted)) = prettySpec <> prettyBody
             where
-                prettySpec = PPD.angles (pretty l) <+> pretty n <+> dquotes (pretty d)
+                prettySpec = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
                 prettyBody = if XTree.null subtree
                                  then mempty
                                  else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
@@ -231,7 +236,7 @@ instance Pretty BLayout where
 prettyMLayoutAlg :: TreeF (Item MLocation BLayout) (Doc ann) -> Doc ann
 prettyMLayoutAlg (TreeF (Item l n d b) s) = prettySpec <> prettyBody
     where
-        prettySpec = PPD.brackets (pretty l) <+> pretty n <+> dquotes (pretty d)
+        prettySpec = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
         prettyBody = if XTree.null b && P.null s
                          then mempty
                          else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep s) <> line)

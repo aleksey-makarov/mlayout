@@ -52,7 +52,7 @@
       <0:3> EE1 "Docs for EE1"
       <4:5> EE2 "Docs for EE2"
     }
-    <@{A, B, C}> E8 ""        # 4 bits in each of 3 fields A, B, C
+    <@{A, B, C}> E8           # 4 bits in each of 3 fields A, B, C
                               # at 18:21, 22:25 and 26:29
                               # width is inferred from the contents
     {

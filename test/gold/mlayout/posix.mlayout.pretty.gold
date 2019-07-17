@@ -1,5 +1,5 @@
 [:] POSIX_PERMISSIONS "POSIX permissions" {
-    <3@{ OTH,  GRP,  USR}> I "" {
+    <3@{ OTH,  GRP,  USR}> I {
         <@0> X "Execute"
         <@1> W "Write"
         <@2> R "Read"
