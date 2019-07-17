@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Resolver
     ( Location (..)
@@ -6,8 +9,10 @@ module MLayout.Resolver
     , resolve
     ) where
 
+import           Control.Exception
 import           Data.List.NonEmpty
 import           Data.Text
+import           Data.Text.Prettyprint.Doc
 import           Data.Tree
 
 import qualified MLayout.Parser as P
@@ -23,7 +28,12 @@ type BLayout = XTree P.ValueItem (P.Item Location ())
 
 type MLayout = Tree (P.Item Location BLayout)
 
-resolve :: P.MLayout -> MLayout
+data ResolverException = CmdlineException Text deriving (Exception, Show, Eq, Ord)
+
+instance Pretty MLayout where
+    pretty = undefined
+
+resolve :: [P.MLayout] -> Either ResolverException [MLayout]
 resolve = undefined
 
 {-

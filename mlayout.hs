@@ -5,7 +5,6 @@
 
 module Main (main) where
 
-import           Control.Monad.IO.Class
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 import           Options.Applicative
@@ -16,7 +15,7 @@ import qualified Text.Trifecta.Parser as TRI
 import qualified Text.Trifecta.Result as TRI
 
 import qualified MLayout.Parser as MLP
--- import qualified MLayout.Resolver as MLR
+import qualified MLayout.Resolver as MLR
 
 data OutputType
     = Pretty
@@ -59,7 +58,7 @@ optsParser = MLayoutOptions
                     <> help "Input file"
                     )
             outFileParser = optional (argument str
-                    (  metavar "OUTPUT_FILE_OR_DIR"
+                    (  metavar "OUTPUT_FILE"
                     <> help "Output file or directory"
                     ))
 
@@ -68,8 +67,8 @@ opts = info (helper <*> optsParser)
     (  fullDesc
     <> header "mlayout - transform memory layout files"
     <> progDesc
-        (  "Transform input files in MLayout format into pretty printed MLayout files, \
-           \or TEMPLATE files processed by dhall engine. \
+        (  "Transform input files in MLayout format into pretty printed MLayout files \
+           \or to results of applying dhall function from TEMPLATE file to the syntax trees. \
            \The utility reads INPUT_FILE, processes it and outputs the result \
            \to OUTPUT_FILE or to stdout."
         )
@@ -78,22 +77,37 @@ opts = info (helper <*> optsParser)
 prettyPrint :: Pretty p => [p] -> Handle -> IO ()
 prettyPrint layout h = hPutDoc h $ vcat $ fmap pretty layout
 
-mlayout :: MLayoutOptions -> ((Handle -> IO ()) -> IO ()) -> IO ()
-mlayout MLayoutOptions {..} withOutputHandle = case outputTypeOpt of
-    Pretty -> do
-        parsed <- TRI.parseFromFileEx MLP.parser inFile >>= \ case
+parse :: FilePath -> IO [MLP.MLayout]
+parse inf = TRI.parseFromFileEx MLP.parser inf >>= \ case
             TRI.Success ok -> return ok
             TRI.Failure xs  -> do
-                liftIO $ TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
+                TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
                 exitWith $ ExitFailure 1
-        withOutputHandle $ prettyPrint parsed
-    PrettyResolved -> undefined
-    Format _ -> undefined
 
-mlayout' :: MLayoutOptions -> IO ()
-mlayout' options@(MLayoutOptions {..}) = case outFile of
-    Just outf -> mlayout options (withFile outf WriteMode)
-    Nothing -> mlayout options (\ f -> f stdout)
+resolve :: [MLP.MLayout] -> IO [MLR.MLayout]
+resolve unresolvedLayout = either handleResolverError return (MLR.resolve unresolvedLayout)
+    where
+       handleResolverError e = do
+           print e
+           exitWith $ ExitFailure 1
+
+mlayout :: MLayoutOptions ->  IO ()
+mlayout MLayoutOptions {..} =
+    let
+        withOutputHandle :: (Handle -> IO ()) -> IO ()
+        withOutputHandle f = case outFile of
+            Just outputPath -> withFile outputPath WriteMode f
+            Nothing -> f stdout
+
+    in do
+        parsed <- parse inFile
+        case outputTypeOpt of
+            Pretty -> do
+                withOutputHandle $ prettyPrint parsed
+            PrettyResolved -> do
+                resolved <- resolve parsed
+                withOutputHandle $ prettyPrint resolved
+            Format _ -> undefined
 
 main :: IO ()
-main = execParser opts >>= mlayout'
+main = execParser opts >>= mlayout
