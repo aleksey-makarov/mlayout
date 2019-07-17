@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Resolver
@@ -16,7 +17,7 @@ import           Data.Text.Prettyprint.Doc
 import           Data.Tree
 
 import qualified MLayout.Parser as P
-import           MLayout.XTree
+import           MLayout.XTree as XTree
 
 data Location
     = FromTo Word Word                    -- [a:b], a is the first, b is the maximum, not upper bound
@@ -28,13 +29,33 @@ type BLayout = XTree P.ValueItem (P.Item Location ())
 
 type MLayout = Tree (P.Item Location BLayout)
 
+instance Pretty Location where
+    -- FromTo Word Word
+    pretty (FromTo from to) = pretty from <> "+" <> pretty to
+    -- Fields Word (NonEmpty (Word, Text))
+    pretty (Fields w pairs) = pretty w <> "@" <> (braces $ cat $ punctuate ", " $ toList $ fmap posPretty pairs)
+        where
+            posPretty (mat, name) = pretty mat <+> pretty name
+    -- Periodic Word Word Word Word
+    pretty (Periodic w start n step) = pretty w <> "@" <> pretty start <> brackets (pretty n <+> "+" <> pretty step)
+
+instance Pretty (P.Item Location ()) where
+    pretty (P.Item l n d ()) = angles (pretty l) <+> pretty n <> P.prettyDoc d
+
+instance Pretty (P.Item Location BLayout) where
+    pretty (P.Item l n d _) = brackets (pretty l) <+> pretty n <> P.prettyDoc d
+
+instance P.PrettyInternals (P.Item Location BLayout) where
+    prettyInternals (P.Item _ _ _ b) = pretty b
+    prettyInternalsIsNull (P.Item _ _ _ b) = XTree.null b
+
 data ResolverException = CmdlineException Text deriving (Exception, Show, Eq, Ord)
 
-instance Pretty MLayout where
-    pretty = undefined
+resolveMLayout :: P.MLayout -> Either ResolverException MLayout
+resolveMLayout = undefined
 
 resolve :: [P.MLayout] -> Either ResolverException [MLayout]
-resolve = undefined
+resolve layouts= sequence $ fmap resolveMLayout layouts
 
 {-
 -- FIXME: use this for itemToList

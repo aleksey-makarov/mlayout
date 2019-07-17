@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module MLayout.Parser
     ( Width
     , MWidth
@@ -18,10 +20,12 @@ module MLayout.Parser
     , BLocation
     , MLocation
     , ValueItem
-    , Item
+    , Item (..)
     , BLayout
     , MLayout
+    , PrettyInternals (..)
     , parser
+    , prettyDoc
     ) where
 
 import           Prelude as P
@@ -220,31 +224,42 @@ prettyDoc t = if Data.Text.null t
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-prettyBLayoutAlg :: XTreeF ValueItem (Item BLocation ()) (BLayout, Doc ann) -> Doc ann
+instance Pretty (Item BLocation ()) where
+    pretty (Item l n d ()) = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
+
+instance Pretty (Item MLocation BLayout) where
+    pretty (Item l n d _) = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
+
+class PrettyInternals a where
+    prettyInternals :: a -> Doc ann
+    prettyInternalsIsNull :: a -> Bool
+
+instance PrettyInternals (Item MLocation BLayout) where
+    prettyInternals (Item _ _ _ b) = pretty b
+    prettyInternalsIsNull (Item _ _ _ b) = XTree.null b
+
+prettyBLayoutAlg :: (Pretty l, Pretty n) => XTreeF l n (XTree l n, Doc ann) -> Doc ann
 prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
     where
-        prettyr (Item l n d (), (subtree, subtreeFormatted)) = prettySpec <> prettyBody
-            where
-                prettySpec = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
-                prettyBody = if XTree.null subtree
-                                 then mempty
-                                 else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
+        prettyr (item, (subtree, subtreeFormatted)) =
+            pretty item <> if XTree.null subtree
+                               then mempty
+                               else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
 
-instance Pretty BLayout where
+instance (Pretty l, Pretty n) => Pretty (XTree l n) where
     pretty = para prettyBLayoutAlg
 
-prettyMLayoutAlg :: TreeF (Item MLocation BLayout) (Doc ann) -> Doc ann
-prettyMLayoutAlg (TreeF (Item l n d b) s) = prettySpec <> prettyBody
+prettyMLayoutAlg :: (Pretty n, PrettyInternals n) => TreeF n (Doc ann) -> Doc ann
+prettyMLayoutAlg (TreeF item s) = pretty item <> prettyBody
     where
-        prettySpec = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
-        prettyBody = if XTree.null b && P.null s
+        prettyBody = if prettyInternalsIsNull item && P.null s
                          then mempty
-                         else PPD.space <> PPD.braces (line <> indent 4 (pretty b <> sepbm <> PPD.vsep s) <> line)
-        sepbm = if XTree.null b || P.null s
+                         else PPD.space <> PPD.braces (line <> indent 4 (prettyInternals item <> sepbm <> PPD.vsep s) <> line)
+        sepbm = if prettyInternalsIsNull item || P.null s
                     then mempty
                     else line
 
-instance Pretty MLayout where
+instance (Pretty n, PrettyInternals n) => Pretty (Tree n) where
     pretty = cata prettyMLayoutAlg
 
 --------------------------------------------------------------------------------
