@@ -208,7 +208,9 @@ instance Pretty w => Pretty (Location w) where
         where
             posPretty (mat, name) = prettyMaybe mat <+> pretty name
     -- Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
-    pretty (Periodic mw mat n ms) = prettyMaybe mw <> "@" <> prettyMaybe mat <> PPD.brackets (pretty n <+> "+" <> prettyMaybe ms)
+    pretty (Periodic mw mat n ms) = prettyMaybe mw <> "@" <> prettyMaybe mat <> PPD.brackets (pretty n <> maybe mempty appendStep ms)
+        where
+            appendStep w = PPD.space <> "+" <> pretty w
 
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)

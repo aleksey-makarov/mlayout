@@ -76,11 +76,16 @@
 
   # one 8-byte word at 0x48
   [%64@0x48] B4 "Docs for B4" {
-    <2@2[3 +4]> E1            "Docs for E1"
+    # optional width, optional start, mandatory number of items (>= 2), optional step
+    <2@2[3 +4]> E7 "Docs for E7"
                               # 2 bits in each of 3 fields with step 4
-                              # 2:3, 6:7, 10:11
-    <@12[4]> E2               "Docs for E2"
-                              # 1 bit in each of 4 fields
-                              # 12:15
+                              # 2:3, 6:7, 10:11 (7)
+    <@12[4]> E2 "Docs for E2" # 1 bit  in each of 4 fields 12:15 (2)
+    <@[4]> E0 "Docs for E0"   # 1 bit  in each of 4 fields 16:19
+    <2@[2]> E1 "Docs for E1"  # 2 bits in each of 2 fields 20:21 and 22:23
+    <@[2 + 3]> E4 "Docs E4"   # 1 bit  in each of 2 fields 24, 27, 30
+    <2@32[2]> E3 "Docs E3"    # 2 bits in each of 2 fields 32:33 34:35
+    <2@[2 +2]> E5 "Docs E5"   # 2 bits in each of 2 fields 32:33 34:35
+    <@37[2 +2]> E6 "Docs E6"  # 1 bit  in each of 2 fields 37, 39
   }
 }

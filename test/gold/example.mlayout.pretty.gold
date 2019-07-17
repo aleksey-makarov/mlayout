@@ -39,7 +39,13 @@
         <@{ J,  K, 25 L}> E3 "Docs for E3"
     }
     [%64@72] B4 "Docs for B4" {
-        <2@2[3 +4]> E1 "Docs for E1"
-        <@12[4 +]> E2 "Docs for E2"
+        <2@2[3 +4]> E7 "Docs for E7"
+        <@12[4]> E2 "Docs for E2"
+        <@[4]> E0 "Docs for E0"
+        <2@[2]> E1 "Docs for E1"
+        <@[2 +3]> E4 "Docs E4"
+        <2@32[2]> E3 "Docs E3"
+        <2@[2 +2]> E5 "Docs E5"
+        <@37[2 +2]> E6 "Docs E6"
     }
 }
