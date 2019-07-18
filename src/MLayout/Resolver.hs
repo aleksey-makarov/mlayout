@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Resolver
@@ -11,6 +12,7 @@ module MLayout.Resolver
     ) where
 
 import           Control.Exception
+import           Data.Functor.Foldable
 import           Data.List.NonEmpty
 import           Data.Text
 import           Data.Text.Prettyprint.Doc
@@ -18,6 +20,7 @@ import           Data.Tree
 
 import qualified MLayout.Parser as P
 import           MLayout.XTree as XTree
+import           MLayout.DataFunctorFoldableExtra
 
 data Location
     = FromTo Word Word                    -- [a:b], a is the first, b is the maximum, not upper bound
@@ -51,11 +54,14 @@ instance P.PrettyInternals (P.Item Location BLayout) where
 
 data ResolverException = CmdlineException Text deriving (Exception, Show, Eq, Ord)
 
+resolveMLayoutAlg :: (forall a . TreeF (P.Item P.MLocation P.BLayout) (Either ResolverException a) -> Either ResolverException (TreeF (P.Item Location BLayout) a))
+resolveMLayoutAlg = undefined
+
 resolveMLayout :: P.MLayout -> Either ResolverException MLayout
-resolveMLayout = undefined
+resolveMLayout = transverse resolveMLayoutAlg
 
 resolve :: [P.MLayout] -> Either ResolverException [MLayout]
-resolve layouts= sequence $ fmap resolveMLayout layouts
+resolve layouts = sequence $ fmap resolveMLayout layouts
 
 {-
 -- FIXME: use this for itemToList
