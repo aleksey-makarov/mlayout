@@ -24,13 +24,21 @@
 import Data.Text
 import Data.List.NonEmpty
 
-data Location
+data LocationParsed
     = FromTo (Maybe Word) (Maybe Word)                     -- [a:b], a is the first, b is the maximum, not upper bound
     | WordNext Word                                        -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
     | Word (Maybe Word) Word                               -- [@0x11], [7@0x22], [%16@3]
     | Fields (Maybe Word) (NonEmpty (Maybe Word, Text))    -- [@{A, B, C}], [%12@{12 A, 34 B}]
     | Periodic (Maybe Word) (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
     deriving Show
+
+data LocationResolved
+    = FromToResolved Word Word
+    | FieldsResolved Word (NonEmpty (Word, Text))
+    | PeriodicResolved Word Word Word Word
+    deriving Show
+
+data Location = Location LocationParsed LocationResolved deriving Show
 
 data ValueItem = ValueItem Integer Text Text deriving Show   -- = value, name, doc
 
