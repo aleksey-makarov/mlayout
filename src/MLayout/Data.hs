@@ -1,8 +1,3 @@
-#!/usr/bin/env stack
-{- stack script --resolver nightly-2019-07-12
-    --package text
--}
-
 -- https://wiki.haskell.org/GADTs_for_dummies
 -- https://en.wikipedia.org/wiki/Generalized_algebraic_data_type
 -- https://en.wikibooks.org/wiki/Haskell/GADT
@@ -20,6 +15,8 @@
 {-# LANGUAGE TypeOperators #-}
 
 {-# OPTIONS_GHC -Wall #-}
+
+module MLayout.Data where
 
 import Data.Text
 import Data.List.NonEmpty
@@ -90,6 +87,3 @@ instance HFunctor (MLayoutF l) where
             ff :: (f :~> g) -> BitsItem f -> BitsItem g
             ff h (BitsItemBits x) = BitsItemBits $ h x
             ff _ (BitsItemValue vv vn vd) = BitsItemValue vv vn vd
-
-main :: IO ()
-main = putStrLn "Hello World"
