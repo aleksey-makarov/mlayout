@@ -37,53 +37,61 @@ data LocationResolved
 
 data Location = Location LocationParsed LocationResolved deriving Show
 
+data ValueItem = ValueItem Integer Text Text -- value, name, doc
+
 data MemoryItem r
-    = MemoryItemMemory (r MLayoutMemory) -- location, name, doc, children
+    = MemoryItemMemory (r MLayoutMemory)
     | MemoryItemWord (r MLayoutWord)
 
 data WordItem r
     = WordItemWord (r MLayoutWord)
     | WordItemBits (r MLayoutBits)
-    | WordItemValue  Integer Text Text -- value, name, doc
+    | WordItemValue ValueItem
 
 data BitsItem r
     = BitsItemBits (r MLayoutBits)
-    | BitsItemValue Integer Text Text
+    | BitsItemValue ValueItem
+
+data ItemDescription l = ItemDescription l Text Text  -- location, name, doc
 
 data MLayoutMemory
 data MLayoutWord
 data MLayoutBits
 
 data MLayoutF :: * -> (* -> *) -> * -> * where
-    MLayoutMemoryF :: l -> Text -> Text -> [ MemoryItem r ] -> MLayoutF l r MLayoutMemory
-    MLayoutWordF ::   l -> Text -> Text -> [ WordItem r ] -> MLayoutF l r MLayoutWord
-    MLayoutBitsF ::   Integer -> Text -> Text -> [ BitsItem r ] -> MLayoutF l r MLayoutBits
+    MLayoutMemoryF :: ItemDescription l -> [ MemoryItem r ] -> MLayoutF l r MLayoutMemory
+    MLayoutWordF ::   ItemDescription l -> [ WordItem r ]   -> MLayoutF l r MLayoutWord
+    MLayoutBitsF ::   ItemDescription l -> [ BitsItem r ]   -> MLayoutF l r MLayoutBits
 
 -- HFix :: ((* -> *) -> (* -> *)) -> (* -> *)
 newtype HFix h a = HFix { unHFix :: h (HFix h) a }
 
-type MLayout = HFix (MLayoutF Location)
-type MLayoutParsed = HFix (MLayoutF LocationParsed)
+type MLayout = HFix (MLayoutF Location) MLayoutMemory
+type MLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutMemory
+type WLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutWord
+type BLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutBits
 
 type f :~> g = forall a . f a -> g a
 
 class HFunctor (h :: (* -> *) -> * -> *) where
     hfmap :: (f :~> g) -> h f :~> h g
 
+-- FIXME: boilerplate
 instance HFunctor (MLayoutF l) where
-    hfmap f (MLayoutMemoryF l d n mis) = MLayoutMemoryF l d n $ fmap (ff f) mis
+    hfmap f (MLayoutMemoryF d mis) = MLayoutMemoryF d $ fmap (ff f) mis
         where
             ff :: (f :~> g) -> MemoryItem f -> MemoryItem g
             ff h (MemoryItemMemory x) = MemoryItemMemory $ h x
             ff h (MemoryItemWord x)   = MemoryItemWord $ h x
-    hfmap f (MLayoutWordF l d n wis) = MLayoutWordF l d n $ fmap (ff f) wis
+    hfmap f (MLayoutWordF d wis) = MLayoutWordF d $ fmap (ff f) wis
         where
             ff :: (f :~> g) -> WordItem f -> WordItem g
             ff h (WordItemWord x)   = WordItemWord $ h x
             ff h (WordItemBits x) = WordItemBits $ h x
-            ff _ (WordItemValue vv vn vd) = WordItemValue vv vn vd
-    hfmap f (MLayoutBitsF l d n bis) = MLayoutBitsF l d n $ fmap (ff f) bis
+            -- FIXME: coerce?
+            ff _ (WordItemValue vi) = WordItemValue vi
+    hfmap f (MLayoutBitsF d bis) = MLayoutBitsF d $ fmap (ff f) bis
         where
             ff :: (f :~> g) -> BitsItem f -> BitsItem g
             ff h (BitsItemBits x) = BitsItemBits $ h x
-            ff _ (BitsItemValue vv vn vd) = BitsItemValue vv vn vd
+            ff _ (BitsItemValue vi) = BitsItemValue vi
