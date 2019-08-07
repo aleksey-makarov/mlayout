@@ -15,20 +15,15 @@
 
 module MLayout.Parser
     ( parser
---    , prettyDoc
     ) where
 
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
--- import           Data.Bifunctor
--- import           Data.Functor.Foldable
 import           Data.HashSet as HS
--- import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
--- import           Data.Text.Prettyprint.Doc as PPD
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
@@ -39,8 +34,6 @@ import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
--- import           MLayout.XTree as XTree
--- import           MLayout.DataFunctorFoldableExtra
 import           MLayout.Data
 
 ------------------------------------------------------------------------
@@ -73,15 +66,15 @@ startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP >>=
 startSetP :: Maybe Word -> Prsr (LocationParsed)
 startSetP firstMaybeWord = Fields firstMaybeWord <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
-startP :: Maybe Word -> Prsr (LocationParsed)
-startP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
-startP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WordNext w))
+atP :: Maybe Word -> Prsr (LocationParsed)
+atP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
+atP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WordNext w))
 
 fromToP :: Maybe Word -> Prsr (LocationParsed)
 fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 
-fromToOrStartP :: Maybe Word -> Prsr (LocationParsed)
-fromToOrStartP x = fromToP x <|> startP x
+fromToOrAtP :: Maybe Word -> Prsr (LocationParsed)
+fromToOrAtP x = fromToP x <|> atP x
 
 justOneWordLocationBits :: Word -> LocationParsed
 justOneWordLocationBits w = Word Nothing w
@@ -89,56 +82,44 @@ justOneWordLocationBits w = Word Nothing w
 justOneWordLocationMemory :: Word -> LocationParsed
 justOneWordLocationMemory w = WordNext w
 
-locationP :: (Word -> LocationParsed) -> Prsr (LocationParsed)
-locationP justOneWord = optional wordP >>= maybe
-    (fromToOrStartP Nothing <|> (return $ FromTo Nothing Nothing))
-    (\x -> fromToOrStartP (Just x) <|> (return $ justOneWord x))
+locationInternalsP :: (Word -> LocationParsed) -> Prsr (LocationParsed)
+locationInternalsP justOneWord = optional wordP >>= maybe
+    (fromToOrAtP Nothing <|> (return $ FromTo Nothing Nothing))
+    (\x -> fromToOrAtP (Just x) <|> (return $ justOneWord x))
 
--- <12:12> <|> <12@..>
-bLocationP :: Prsr LocationParsed
-bLocationP = TPT.angles (locationP justOneWordLocationBits) <?> "bitfield location"
-
-mWidthP :: Prsr Word
-mWidthP = token (char '%' *> (  1  <$ string "8"
+wWidthP :: Prsr Word
+wWidthP = token (char '%' *> (  1  <$ string "8"
                             <|> 2  <$ string "16"
                             <|> 4  <$ string "32"
                             <|> 8  <$ string "64"
                             <|> 16 <$ string "128" ))
 
 -- [%12@..], [%12]
-mWordP :: Prsr LocationParsed
-mWordP = mWidthP >>= (\x -> startP (Just x) <|> (return (WordNext x)))
+wLocationInternalsP :: Prsr LocationParsed
+wLocationInternalsP = wWidthP >>= (\x -> atP (Just x) <|> (return (WordNext x)))
+
+bLocationInternalsP :: Prsr LocationParsed
+bLocationInternalsP = locationInternalsP justOneWordLocationBits
+
+mLocationInternalsP :: Prsr LocationParsed
+mLocationInternalsP = locationInternalsP justOneWordLocationMemory
+
+-- <12:12> <|> <12@..>
+bLocationP :: Prsr LocationParsed
+bLocationP = TPT.angles bLocationInternalsP
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mwLocationP :: Prsr (Either LocationParsed LocationParsed) -- left for memory, right for word
-mwLocationP = TPT.brackets (Right <$> mWordP <|> Left <$> (locationP justOneWordLocationMemory)) <?> "memory or word layout location"
+mwLocationP = TPT.brackets (Right <$> wLocationInternalsP <|> Left <$> mLocationInternalsP)
 
 wLocationP :: Prsr LocationParsed
-wLocationP = undefined
+wLocationP = TPT.brackets wLocationInternalsP
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier) <?> "id"
 
 docP :: Prsr Text
 docP = (stringLiteral <|> return "") <?> "documentation string"
-
-{-
-bLayoutItemP :: Prsr (Item BLocation (), BLayout)
-bLayoutItemP = do
-    l <- bLocationP
-    n <- nameP
-    d <- docP
-    subitems <- TPT.braces bLayoutP <|> return XTree.empty
-    return (Item l n d (), subitems)
-
-bLayoutP :: Prsr BLayout
-bLayoutP = bLayoutP' <?> "bitmap item"
-    where
-        bLayoutP' = embed . XTreeF <$> many (Left <$> valueItemP <|> Right <$> bLayoutItemP)
-
-mBodyP :: Prsr (BLayout, [MLayout])
-mBodyP = TPT.braces ((,) <$> bLayoutP <*> many mLayoutP)
--}
 
 itemTailP :: LocationParsed -> Prsr (ItemDescription LocationParsed)
 itemTailP l = ItemDescription l <$> nameP <*> docP
@@ -181,79 +162,6 @@ mLayoutP = mwItemP >>= either mmLayoutP mwLayoutP
 
 mLayoutsP :: Prsr [MemoryItemParsed]
 mLayoutsP = some mLayoutP
-
-{-
---------------------------------------------------------------------------------
-
-prettyMaybe :: Pretty w => Maybe w -> Doc ann
-prettyMaybe (Just x) = pretty x
-prettyMaybe Nothing = mempty
-
-instance Pretty w => Pretty (Location w) where
-    -- FromTo (Maybe Word) (Maybe Word)
-    pretty (FromTo mf mt) = prettyMaybe mf <> ":" <> prettyMaybe mt
-    -- WordNext w
-    pretty (WordNext w) = pretty w <> "@"
-    -- Word (Maybe w) Word
-    pretty (Word mw at) = prettyMaybe mw <> "@" <> pretty at
-    -- Fields (Maybe w) (NonEmpty (Maybe Word, Text))
-    pretty (Fields mw pairs) = prettyMaybe mw <> "@" <> (PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty pairs)
-        where
-            posPretty (mat, name) = prettyMaybe mat <+> pretty name
-    -- Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
-    pretty (Periodic mw mat n ms) = prettyMaybe mw <> "@" <> prettyMaybe mat <> PPD.brackets (pretty n <> maybe mempty appendStep ms)
-        where
-            appendStep w = PPD.space <> "+" <> pretty w
-
-prettyDoc :: Text -> Doc ann
-prettyDoc t = if Data.Text.null t
-                  then mempty
-                  else PPD.space <> dquotes (pretty t)
-
-instance Pretty ValueItem where
-    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
-
-instance Pretty (Item BLocation ()) where
-    pretty (Item l n d ()) = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
-
-instance Pretty (Item MLocation BLayout) where
-    pretty (Item l n d _) = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
-
-class PrettyInternals a where
-    prettyInternals :: a -> Doc ann
-    prettyInternalsIsNull :: a -> Bool
-
-instance PrettyInternals (Item MLocation BLayout) where
-    prettyInternals (Item _ _ _ b) = pretty b
-    prettyInternalsIsNull (Item _ _ _ b) = XTree.null b
-
-prettyBLayoutAlg :: (Pretty l, Pretty n) => XTreeF l n (XTree l n, Doc ann) -> Doc ann
-prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
-    where
-        prettyr (item, (subtree, subtreeFormatted)) =
-            pretty item <> if XTree.null subtree
-                               then mempty
-                               else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
-
-instance (Pretty l, Pretty n) => Pretty (XTree l n) where
-    pretty = para prettyBLayoutAlg
-
-prettyMLayoutAlg :: (Pretty n, PrettyInternals n) => TreeF n (Doc ann) -> Doc ann
-prettyMLayoutAlg (TreeF item s) = pretty item <> prettyBody
-    where
-        prettyBody = if prettyInternalsIsNull item && P.null s
-                         then mempty
-                         else PPD.space <> PPD.braces (line <> indent 4 (prettyInternals item <> sepbm <> PPD.vsep s) <> line)
-        sepbm = if prettyInternalsIsNull item || P.null s
-                    then mempty
-                    else line
-
-instance (Pretty n, PrettyInternals n) => Pretty (Tree n) where
-    pretty = cata prettyMLayoutAlg
-
---------------------------------------------------------------------------------
-
--}
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype Prsr a = Prsr { runPrsr :: Parser a }

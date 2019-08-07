@@ -14,7 +14,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as TPP
 import qualified Text.Trifecta.Parser as TRI
 import qualified Text.Trifecta.Result as TRI
 
-import qualified MLayout.Parser as MLP
+import           MLayout.Data
+import           MLayout.Parser
 import qualified MLayout.Resolver as MLR
 
 data OutputType
@@ -77,14 +78,14 @@ opts = info (helper <*> optsParser)
 prettyPrint :: Pretty p => [p] -> Handle -> IO ()
 prettyPrint layout h = hPutDoc h $ vcat $ fmap pretty layout
 
-parse :: FilePath -> IO [MLP.MLayout]
-parse inf = TRI.parseFromFileEx MLP.parser inf >>= \ case
+parse :: FilePath -> IO [MemoryItemParsed]
+parse inf = TRI.parseFromFileEx parser inf >>= \ case
             TRI.Success ok -> return ok
             TRI.Failure xs  -> do
                 TPP.displayIO stderr $ TPP.renderPretty 0.8 80 $ (TRI._errDoc xs) <> TPP.linebreak
                 exitWith $ ExitFailure 1
 
-resolve :: [MLP.MLayout] -> IO [MLR.MLayout]
+resolve :: [MemoryItemParsed] -> IO [MemoryItemResolved]
 resolve unresolvedLayout = either handleResolverError return (MLR.resolve unresolvedLayout)
     where
        handleResolverError e = do

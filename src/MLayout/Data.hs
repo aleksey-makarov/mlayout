@@ -9,10 +9,12 @@
 -- http://hackage.haskell.org/package/compdata-0.12/docs/Data-Comp-Multi-HFunctor.html
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -20,6 +22,8 @@ module MLayout.Data where
 
 import Data.Text
 import Data.List.NonEmpty
+import Data.Text.Prettyprint.Doc
+
 
 data LocationParsed
     = FromTo (Maybe Word) (Maybe Word)                     -- [a:b], a is the first, b is the maximum, not upper bound
@@ -74,6 +78,8 @@ type WLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutWord
 type BLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutBits
 
 type MemoryItemParsed = MemoryItem (HFix (MLayoutF LocationParsed))
+type MemoryItemResolved = MemoryItem (HFix (MLayoutF Location)) -- FIXME
+
 type WordItemParsed = WordItem (HFix (MLayoutF LocationParsed))
 type BitsItemParsed = BitsItem (HFix (MLayoutF LocationParsed))
 
@@ -110,3 +116,82 @@ mkW = undefined
 
 mkB :: ItemDescription l -> [BitsItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutBits
 mkB = undefined
+
+instance Pretty MemoryItemParsed where
+    pretty = undefined
+
+instance Pretty MemoryItemResolved where
+    pretty = undefined
+
+{-
+--------------------------------------------------------------------------------
+
+prettyMaybe :: Pretty w => Maybe w -> Doc ann
+prettyMaybe (Just x) = pretty x
+prettyMaybe Nothing = mempty
+
+instance Pretty w => Pretty (Location w) where
+    -- FromTo (Maybe Word) (Maybe Word)
+    pretty (FromTo mf mt) = prettyMaybe mf <> ":" <> prettyMaybe mt
+    -- WordNext w
+    pretty (WordNext w) = pretty w <> "@"
+    -- Word (Maybe w) Word
+    pretty (Word mw at) = prettyMaybe mw <> "@" <> pretty at
+    -- Fields (Maybe w) (NonEmpty (Maybe Word, Text))
+    pretty (Fields mw pairs) = prettyMaybe mw <> "@" <> (PPD.braces $ PPD.cat $ punctuate ", " $ LNE.toList $ fmap posPretty pairs)
+        where
+            posPretty (mat, name) = prettyMaybe mat <+> pretty name
+    -- Periodic (Maybe w) (Maybe Word) Word (Maybe Word)
+    pretty (Periodic mw mat n ms) = prettyMaybe mw <> "@" <> prettyMaybe mat <> PPD.brackets (pretty n <> maybe mempty appendStep ms)
+        where
+            appendStep w = PPD.space <> "+" <> pretty w
+
+prettyDoc :: Text -> Doc ann
+prettyDoc t = if Data.Text.null t
+                  then mempty
+                  else PPD.space <> dquotes (pretty t)
+
+instance Pretty ValueItem where
+    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
+
+instance Pretty (Item BLocation ()) where
+    pretty (Item l n d ()) = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
+
+instance Pretty (Item MLocation BLayout) where
+    pretty (Item l n d _) = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
+
+class PrettyInternals a where
+    prettyInternals :: a -> Doc ann
+    prettyInternalsIsNull :: a -> Bool
+
+instance PrettyInternals (Item MLocation BLayout) where
+    prettyInternals (Item _ _ _ b) = pretty b
+    prettyInternalsIsNull (Item _ _ _ b) = XTree.null b
+
+prettyBLayoutAlg :: (Pretty l, Pretty n) => XTreeF l n (XTree l n, Doc ann) -> Doc ann
+prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
+    where
+        prettyr (item, (subtree, subtreeFormatted)) =
+            pretty item <> if XTree.null subtree
+                               then mempty
+                               else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
+
+instance (Pretty l, Pretty n) => Pretty (XTree l n) where
+    pretty = para prettyBLayoutAlg
+
+prettyMLayoutAlg :: (Pretty n, PrettyInternals n) => TreeF n (Doc ann) -> Doc ann
+prettyMLayoutAlg (TreeF item s) = pretty item <> prettyBody
+    where
+        prettyBody = if prettyInternalsIsNull item && P.null s
+                         then mempty
+                         else PPD.space <> PPD.braces (line <> indent 4 (prettyInternals item <> sepbm <> PPD.vsep s) <> line)
+        sepbm = if prettyInternalsIsNull item || P.null s
+                    then mempty
+                    else line
+
+instance (Pretty n, PrettyInternals n) => Pretty (Tree n) where
+    pretty = cata prettyMLayoutAlg
+
+--------------------------------------------------------------------------------
+
+-}
