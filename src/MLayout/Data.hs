@@ -48,6 +48,7 @@ data WordItem r
     | WordItemBits (r MLayoutBits)
     | WordItemValue ValueItem
 
+-- (* -> *) -> *
 data BitsItem r
     = BitsItemBits (r MLayoutBits)
     | BitsItemValue ValueItem
@@ -67,9 +68,14 @@ data MLayoutF :: * -> (* -> *) -> * -> * where
 newtype HFix h a = HFix { unHFix :: h (HFix h) a }
 
 type MLayout = HFix (MLayoutF Location) MLayoutMemory
+
 type MLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutMemory
 type WLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutWord
 type BLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutBits
+
+type MemoryItemParsed = MemoryItem (HFix (MLayoutF LocationParsed))
+type WordItemParsed = WordItem (HFix (MLayoutF LocationParsed))
+type BitsItemParsed = BitsItem (HFix (MLayoutF LocationParsed))
 
 type f :~> g = forall a . f a -> g a
 
@@ -95,3 +101,12 @@ instance HFunctor (MLayoutF l) where
             ff :: (f :~> g) -> BitsItem f -> BitsItem g
             ff h (BitsItemBits x) = BitsItemBits $ h x
             ff _ (BitsItemValue vi) = BitsItemValue vi
+
+mkM :: ItemDescription l -> [MemoryItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutMemory
+mkM = undefined
+
+mkW :: ItemDescription l -> [WordItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutWord
+mkW = undefined
+
+mkB :: ItemDescription l -> [BitsItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutBits
+mkB = undefined

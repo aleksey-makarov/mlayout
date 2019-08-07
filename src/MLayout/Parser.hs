@@ -21,6 +21,7 @@ module MLayout.Parser
 import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
+-- import           Data.Bifunctor
 import           Data.Functor.Foldable
 import           Data.HashSet as HS
 import           Data.List.NonEmpty as LNE hiding (cons, insert)
@@ -104,11 +105,11 @@ mWordP :: Prsr LocationParsed
 mWordP = mWidthP >>= (\x -> startP (Just x) <|> (return (WordNext x)))
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
-wmLocationP :: Prsr (Either LocationParsed LocationParsed) -- left for word, right for memory
-wmLocationP = TPT.brackets (Left <$> mWordP <|> Right <$> (locationP (\x -> WordNext x))) <?> "memory or word layout location"
+mwLocationP :: Prsr (Either LocationParsed LocationParsed) -- left for memory, right for word
+mwLocationP = TPT.brackets (Right <$> mWordP <|> Left <$> (locationP (\x -> WordNext x))) <?> "memory or word layout location"
 
--- valueItemP :: Prsr ValueItem
--- valueItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
+wLocationP :: Prsr LocationParsed
+wLocationP = undefined
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier) <?> "id"
@@ -117,7 +118,6 @@ docP :: Prsr Text
 docP = (stringLiteral <|> return "") <?> "documentation string"
 
 {-
-
 bLayoutItemP :: Prsr (Item BLocation (), BLayout)
 bLayoutItemP = do
     l <- bLocationP
@@ -133,21 +133,47 @@ bLayoutP = bLayoutP' <?> "bitmap item"
 
 mBodyP :: Prsr (BLayout, [MLayout])
 mBodyP = TPT.braces ((,) <$> bLayoutP <*> many mLayoutP)
-
 -}
 
-mLayoutP :: Prsr MLayoutParsed
-mLayoutP = mLayoutP' <?> "memory layout item"
+itemTailP :: LocationParsed -> Prsr (ItemDescription LocationParsed)
+itemTailP l = ItemDescription l <$> nameP <*> docP
+
+mwItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for mem, Right for word
+mwItemP = mwLocationP >>= undefined -- bimap? -- either (Left <$> itemTailP) (Right <$> itemTailP)
+
+wbItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for word, Right for bits
+wbItemP = (Left <$> (wLocationP >>= itemTailP)) <|> (Right <$> (bLocationP >>= itemTailP))
+
+bItemP :: Prsr (ItemDescription LocationParsed)
+bItemP = bLocationP >>= itemTailP
+
+vItemP :: Prsr ValueItem
+vItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
+
+bLayoutP :: Prsr BitsItemParsed
+bLayoutP = (BitsItemBits <$> (mkB <$> bItemP <*> bLayoutsP)) <|> (BitsItemValue <$> vItemP)
+
+bLayoutsP :: Prsr [BitsItemParsed]
+bLayoutsP = some bLayoutP
+
+wLayoutP :: Prsr WordItemParsed
+wLayoutP = (wbItemP >>= either wwLayoutP wbLayoutP) <|> (WordItemValue <$> vItemP)
     where
-        mLayoutP' = undefined
-{-
-        mLayoutP' = do
-            l <- mLocationP
-            n <- nameP
-            d <- docP
-            (blayout, subtrees) <- mBodyP <|> return (XTree.empty, [])
-            return $ Node (Item l n d blayout) subtrees
--}
+        wwLayoutP d = WordItemWord . mkW d <$> wLayoutsP
+        wbLayoutP d = WordItemBits . mkB d <$> bLayoutsP
+
+wLayoutsP :: Prsr [WordItemParsed]
+wLayoutsP = some wLayoutP
+
+mLayoutP :: Prsr MemoryItemParsed
+mLayoutP = mwItemP >>= either mmLayoutP mwLayoutP
+    where
+        mmLayoutP d = MemoryItemMemory . mkM d <$> mLayoutsP
+        mwLayoutP d = MemoryItemWord   . mkW d <$> wLayoutsP
+
+mLayoutsP :: Prsr [MemoryItemParsed]
+mLayoutsP = some mLayoutP
+
 {-
 --------------------------------------------------------------------------------
 
@@ -230,6 +256,5 @@ instance TokenParsing Prsr where
 -- use the default implementation for other methods:
 -- nesting, semi, highlight, token
 
-parser :: Parser [MLayoutParsed]
-parser = runPrsr $ whiteSpace *> (some $ mLayoutP) <* eof
-
+parser :: Parser [MemoryItemParsed]
+parser = runPrsr $ whiteSpace *> mLayoutsP <* eof
