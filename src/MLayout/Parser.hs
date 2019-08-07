@@ -22,14 +22,13 @@ import           Prelude as P
 import           Control.Applicative
 import           Control.Monad
 -- import           Data.Bifunctor
-import           Data.Functor.Foldable
+-- import           Data.Functor.Foldable
 import           Data.HashSet as HS
-import           Data.List.NonEmpty as LNE hiding (cons, insert)
+-- import           Data.List.NonEmpty as LNE hiding (cons, insert)
 import           Data.Text hiding (maximum)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-import           Data.Text.Prettyprint.Doc as PPD
-import           Data.Tree
+-- import           Data.Text.Prettyprint.Doc as PPD
 import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
@@ -84,6 +83,12 @@ fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 fromToOrStartP :: Maybe Word -> Prsr (LocationParsed)
 fromToOrStartP x = fromToP x <|> startP x
 
+justOneWordLocationBits :: Word -> LocationParsed
+justOneWordLocationBits w = Word Nothing w
+
+justOneWordLocationMemory :: Word -> LocationParsed
+justOneWordLocationMemory w = WordNext w
+
 locationP :: (Word -> LocationParsed) -> Prsr (LocationParsed)
 locationP justOneWord = optional wordP >>= maybe
     (fromToOrStartP Nothing <|> (return $ FromTo Nothing Nothing))
@@ -91,7 +96,7 @@ locationP justOneWord = optional wordP >>= maybe
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr LocationParsed
-bLocationP = TPT.angles (locationP (\x -> Word Nothing x)) <?> "bitfield location"
+bLocationP = TPT.angles (locationP justOneWordLocationBits) <?> "bitfield location"
 
 mWidthP :: Prsr Word
 mWidthP = token (char '%' *> (  1  <$ string "8"
@@ -106,7 +111,7 @@ mWordP = mWidthP >>= (\x -> startP (Just x) <|> (return (WordNext x)))
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mwLocationP :: Prsr (Either LocationParsed LocationParsed) -- left for memory, right for word
-mwLocationP = TPT.brackets (Right <$> mWordP <|> Left <$> (locationP (\x -> WordNext x))) <?> "memory or word layout location"
+mwLocationP = TPT.brackets (Right <$> mWordP <|> Left <$> (locationP justOneWordLocationMemory)) <?> "memory or word layout location"
 
 wLocationP :: Prsr LocationParsed
 wLocationP = undefined
@@ -139,7 +144,10 @@ itemTailP :: LocationParsed -> Prsr (ItemDescription LocationParsed)
 itemTailP l = ItemDescription l <$> nameP <*> docP
 
 mwItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for mem, Right for word
-mwItemP = mwLocationP >>= undefined -- bimap? -- either (Left <$> itemTailP) (Right <$> itemTailP)
+mwItemP = mwLocationP >>= either mItemTailP wItemTailP
+    where
+        mItemTailP l = Left  <$> itemTailP l
+        wItemTailP l = Right <$> itemTailP l
 
 wbItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for word, Right for bits
 wbItemP = (Left <$> (wLocationP >>= itemTailP)) <|> (Right <$> (bLocationP >>= itemTailP))
