@@ -24,6 +24,7 @@ import Data.Text
 import Data.List.NonEmpty
 import Data.Text.Prettyprint.Doc
 
+import MLayout.HFunctor
 
 data LocationParsed
     = FromTo (Maybe Word) (Maybe Word)                     -- [a:b], a is the first, b is the maximum, not upper bound
@@ -68,9 +69,6 @@ data MLayoutF :: * -> (* -> *) -> * -> * where
     MLayoutWordF ::   ItemDescription l -> [ WordItem r ]   -> MLayoutF l r MLayoutWord
     MLayoutBitsF ::   ItemDescription l -> [ BitsItem r ]   -> MLayoutF l r MLayoutBits
 
--- HFix :: ((* -> *) -> (* -> *)) -> (* -> *)
-newtype HFix h a = HFix { unHFix :: h (HFix h) a }
-
 type MLayout = HFix (MLayoutF Location) MLayoutMemory
 
 type MLayoutParsed = HFix (MLayoutF LocationParsed) MLayoutMemory
@@ -82,11 +80,6 @@ type MemoryItemResolved = MemoryItem (HFix (MLayoutF Location)) -- FIXME
 
 type WordItemParsed = WordItem (HFix (MLayoutF LocationParsed))
 type BitsItemParsed = BitsItem (HFix (MLayoutF LocationParsed))
-
-type f :~> g = forall a . f a -> g a
-
-class HFunctor (h :: (* -> *) -> * -> *) where
-    hfmap :: (f :~> g) -> h f :~> h g
 
 -- FIXME: boilerplate
 instance HFunctor (MLayoutF l) where
@@ -109,16 +102,20 @@ instance HFunctor (MLayoutF l) where
             ff _ (BitsItemValue vi) = BitsItemValue vi
 
 mkM :: ItemDescription l -> [MemoryItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutMemory
-mkM = undefined
+mkM i l = HFix (MLayoutMemoryF i l)
 
 mkW :: ItemDescription l -> [WordItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutWord
-mkW = undefined
+mkW i l = HFix (MLayoutWordF i l)
 
 mkB :: ItemDescription l -> [BitsItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutBits
-mkB = undefined
+mkB i l = HFix (MLayoutBitsF i l)
+
+instance Pretty (HFix (MLayoutF LocationParsed) d) where
+    pretty = undefined
 
 instance Pretty MemoryItemParsed where
-    pretty = undefined
+    pretty (MemoryItemMemory x) = pretty x
+    pretty (MemoryItemWord x)   = pretty x
 
 instance Pretty MemoryItemResolved where
     pretty = undefined
