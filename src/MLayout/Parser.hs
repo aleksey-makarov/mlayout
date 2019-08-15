@@ -48,22 +48,6 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-{-
-startArrayP :: Maybe Word -> Prsr (StartParsed)
-startArrayP maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP)
-
--- [..@12[]], [..@12]
-startArrayWithPositionP :: Word -> Prsr (StartParsed)
-startArrayWithPositionP start = TPT.brackets (startArrayP (Just start)) <|> return (Word maybeWidth start)
-
-startArrayNoPositionP :: Prsr (StartParsed)
-startArrayNoPositionP = TPT.brackets (startArrayP Nothing)
-
--- [..@12[34 + 56]] <> [..@12]
-startArrayOrSimpleP :: Prsr (StartParsed)
-startArrayOrSimpleP = startArrayNoPositionP <|> (wordP >>= (startArrayWithPositionP))
--}
-
 startSimpleP :: Maybe Word -> Prsr StartParsed
 startSimpleP maybeStart = return $ maybe Next Simple maybeStart
 
@@ -94,9 +78,9 @@ justOneWordLocationMemory :: Word -> LocationMB
 justOneWordLocationMemory w = WidthStart (Just w) Next
 
 locationInternalsP :: (Word -> LocationMB) -> Prsr LocationMB
-locationInternalsP justOneWord = optional wordP >>= maybe
-    (fromToOrAtP Nothing <|> (return $ WidthStart Nothing Next))
-    (\x -> fromToOrAtP (Just x) <|> (return $ justOneWord x))
+locationInternalsP justOneWord = do
+    x <- optional wordP
+    fromToOrAtP x <|> (return $ maybe (WidthStart Nothing Next) justOneWord x)
 
 wWidthP :: Prsr WordWidth
 wWidthP = token (char '%' *> (  W8   <$ string "8"
