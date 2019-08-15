@@ -1,4 +1,3 @@
-{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -49,70 +48,82 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-startArrayP :: Maybe Word -> Maybe Word -> Prsr (LocationParsed)
-startArrayP maybeWidth maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP)
+{-
+startArrayP :: Maybe Word -> Prsr (StartParsed)
+startArrayP maybeStart = Periodic maybeWidth maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP)
 
 -- [..@12[]], [..@12]
-startArrayWithPositionP :: Maybe Word -> Word -> Prsr (LocationParsed)
-startArrayWithPositionP maybeWidth start = TPT.brackets (startArrayP maybeWidth (Just start)) <|> return (Word maybeWidth start)
+startArrayWithPositionP :: Word -> Prsr (StartParsed)
+startArrayWithPositionP start = TPT.brackets (startArrayP (Just start)) <|> return (Word maybeWidth start)
 
-startArrayNoPositionP :: Maybe Word -> Prsr (LocationParsed)
-startArrayNoPositionP maybeWidth = TPT.brackets (startArrayP maybeWidth Nothing)
+startArrayNoPositionP :: Prsr (StartParsed)
+startArrayNoPositionP = TPT.brackets (startArrayP Nothing)
 
 -- [..@12[34 + 56]] <> [..@12]
-startArrayOrSimpleP :: Maybe Word -> Prsr (LocationParsed)
-startArrayOrSimpleP maybeWidth = startArrayNoPositionP maybeWidth <|> (wordP >>= (startArrayWithPositionP maybeWidth))
+startArrayOrSimpleP :: Prsr (StartParsed)
+startArrayOrSimpleP = startArrayNoPositionP <|> (wordP >>= (startArrayWithPositionP))
+-}
 
-startSetP :: Maybe Word -> Prsr (LocationParsed)
-startSetP firstMaybeWord = Fields firstMaybeWord <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+startSimpleP :: Maybe Word -> Prsr StartParsed
+startSimpleP maybeStart = return $ maybe Next Simple maybeStart
 
-atP :: Maybe Word -> Prsr (LocationParsed)
-atP Nothing            = symbolic '@' *> (startSetP Nothing   <|> startArrayOrSimpleP Nothing)
-atP justWidth@(Just w) = symbolic '@' *> (startSetP justWidth <|> startArrayOrSimpleP justWidth <|> return (WordNext w))
+startArrayP :: Maybe Word -> Prsr StartParsed
+startArrayP maybeStart = TPT.brackets (Periodic maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
 
-fromToP :: Maybe Word -> Prsr (LocationParsed)
+startArrayOrSimpleP :: Prsr StartParsed
+startArrayOrSimpleP = do
+    x <- optional wordP
+    startArrayP x <|> startSimpleP x
+
+startSetP :: Prsr StartParsed
+startSetP = Fields <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+
+atP :: Prsr StartParsed
+atP = symbolic '@' *> (startSetP <|> startArrayOrSimpleP)
+
+fromToP :: Maybe Word -> Prsr LocationParsed
 fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 
-fromToOrAtP :: Maybe Word -> Prsr (LocationParsed)
-fromToOrAtP x = fromToP x <|> atP x
+fromToOrAtP :: Maybe Word -> Prsr LocationParsed
+fromToOrAtP x = fromToP x <|> (WidthStart x <$> atP)
 
 justOneWordLocationBits :: Word -> LocationParsed
-justOneWordLocationBits w = Word Nothing w
+justOneWordLocationBits w = WidthStart Nothing (Simple w)
 
 justOneWordLocationMemory :: Word -> LocationParsed
-justOneWordLocationMemory w = WordNext w
+justOneWordLocationMemory w = WidthStart (Just w) Next
 
-locationInternalsP :: (Word -> LocationParsed) -> Prsr (LocationParsed)
+locationInternalsP :: (Word -> LocationParsed) -> Prsr LocationParsed
 locationInternalsP justOneWord = optional wordP >>= maybe
-    (fromToOrAtP Nothing <|> (return $ FromTo Nothing Nothing))
+    (fromToOrAtP Nothing <|> (return $ WidthStart Nothing Next))
     (\x -> fromToOrAtP (Just x) <|> (return $ justOneWord x))
 
-wWidthP :: Prsr Word
-wWidthP = token (char '%' *> (  1  <$ string "8"
-                            <|> 2  <$ string "16"
-                            <|> 4  <$ string "32"
-                            <|> 8  <$ string "64"
-                            <|> 16 <$ string "128" ))
-
--- [%12@..], [%12]
-wLocationInternalsP :: Prsr LocationParsed
-wLocationInternalsP = wWidthP >>= (\x -> atP (Just x) <|> (return (WordNext x)))
-
-bLocationInternalsP :: Prsr LocationParsed
-bLocationInternalsP = locationInternalsP justOneWordLocationBits
+wWidthP :: Prsr WordWidth
+wWidthP = token (char '%' *> (  W8   <$ string "8"
+                            <|> W16  <$ string "16"
+                            <|> W32  <$ string "32"
+                            <|> W64  <$ string "64"
+                            <|> W128 <$ string "128" ))
 
 mLocationInternalsP :: Prsr LocationParsed
 mLocationInternalsP = locationInternalsP justOneWordLocationMemory
+
+-- [%12@..], [%12]
+wLocationInternalsP :: Prsr LocationParsedWord
+wLocationInternalsP = LocationParsedWord <$> wWidthP <*> (maybe Next id <$> optional atP)
+
+bLocationInternalsP :: Prsr LocationParsed
+bLocationInternalsP = locationInternalsP justOneWordLocationBits
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr LocationParsed
 bLocationP = TPT.angles bLocationInternalsP
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
-mwLocationP :: Prsr (Either LocationParsed LocationParsed) -- left for memory, right for word
+mwLocationP :: Prsr (Either LocationParsed LocationParsedWord) -- left for memory, right for word
 mwLocationP = TPT.brackets (Right <$> wLocationInternalsP <|> Left <$> mLocationInternalsP)
 
-wLocationP :: Prsr LocationParsed
+wLocationP :: Prsr LocationParsedWord
 wLocationP = TPT.brackets wLocationInternalsP
 
 nameP :: Prsr Text
@@ -121,44 +132,31 @@ nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.e
 docP :: Prsr Text
 docP = (stringLiteral <|> return "") <?> "documentation string"
 
-itemTailP :: LocationParsed -> Prsr (ItemDescription LocationParsed)
-itemTailP l = ItemDescription l <$> nameP <*> docP
-
-mwItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for mem, Right for word
-mwItemP = mwLocationP >>= either mItemTailP wItemTailP
-    where
-        mItemTailP l = Left  <$> itemTailP l
-        wItemTailP l = Right <$> itemTailP l
-
-wbItemP :: Prsr (Either (ItemDescription LocationParsed) (ItemDescription LocationParsed)) -- Left for word, Right for bits
-wbItemP = (Left <$> (wLocationP >>= itemTailP)) <|> (Right <$> (bLocationP >>= itemTailP))
-
-bItemP :: Prsr (ItemDescription LocationParsed)
-bItemP = bLocationP >>= itemTailP
-
 vItemP :: Prsr ValueItem
 vItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
+maybeSubitems :: Prsr [a] -> Prsr [a]
+maybeSubitems subitemParser = TPT.braces subitemParser <|> return []
+
 bLayoutP :: Prsr BitsItemParsed
-bLayoutP = (BitsItemBits <$> (mkB <$> bItemP <*> bLayoutsP)) <|> (BitsItemValue <$> vItemP)
+bLayoutP = (BitsItemBits <$> (mkB <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValue <$> vItemP)
 
 bLayoutsP :: Prsr [BitsItemParsed]
 bLayoutsP = some bLayoutP
 
 wLayoutP :: Prsr WordItemParsed
-wLayoutP = (wbItemP >>= either wwLayoutP wbLayoutP) <|> (WordItemValue <$> vItemP)
-    where
-        wwLayoutP d = WordItemWord . mkW d <$> wLayoutsP
-        wbLayoutP d = WordItemBits . mkB d <$> bLayoutsP
+wLayoutP =  (WordItemWord <$> (mkW <$> wLocationP <*> nameP <*> docP <*> maybeSubitems wLayoutsP))
+        <|> (WordItemBits <$> (mkB <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP))
+        <|> (WordItemValue <$> vItemP)
 
 wLayoutsP :: Prsr [WordItemParsed]
 wLayoutsP = some wLayoutP
 
 mLayoutP :: Prsr MemoryItemParsed
-mLayoutP = mwItemP >>= either mmLayoutP mwLayoutP
+mLayoutP = mwLocationP >>= either mmLayoutP mwLayoutP
     where
-        mmLayoutP d = MemoryItemMemory . mkM d <$> mLayoutsP
-        mwLayoutP d = MemoryItemWord   . mkW d <$> wLayoutsP
+        mmLayoutP l = MemoryItemMemory <$> (mkM l <$> nameP <*> docP <*> maybeSubitems mLayoutsP)
+        mwLayoutP l = MemoryItemWord   <$> (mkW l <$> nameP <*> docP <*> maybeSubitems wLayoutsP)
 
 mLayoutsP :: Prsr [MemoryItemParsed]
 mLayoutsP = some mLayoutP

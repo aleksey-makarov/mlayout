@@ -15,7 +15,9 @@ class HFunctor (h :: (* -> *) -> * -> *) where
 -- HFix :: ((* -> *) -> (* -> *)) -> (* -> *)
 newtype HFix h a = HFix { unHFix :: h (HFix h) a }
 
-cata :: forall h a . HFunctor h => (h a :~> a) -> HFix h :~> a
-cata f = run
+hcata :: forall h a . HFunctor h => (h a :~> a) -> HFix h :~> a
+hcata f = run
     where run :: HFix h :~> a
           run (HFix t) = f (hfmap run t)
+
+newtype K x y = K { unK :: x }

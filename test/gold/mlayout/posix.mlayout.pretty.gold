@@ -1,4 +1,4 @@
-[:] POSIX_PERMISSIONS "POSIX permissions" {
+[%16] POSIX_PERMISSIONS "POSIX permissions" {
     <3@{ OTH,  GRP,  USR}> I {
         <@0> X "Execute"
         <@1> W "Write"
