@@ -2,7 +2,7 @@
 [2] NAMEX "doc number two"
 [4] NAMEXX "doc number three" {
     [%32] NAMEXXX "doc number four" {
-        <@6> NAMEXXXXX "doc"
+        <6> NAMEXXXXX "doc"
         =42 NAMEXXXXXX "doc"
     }
 }
@@ -12,7 +12,7 @@
     [] N3 "doc" {
         [3@2] N4 "doc"
         [%8] N5 "doc" {
-            <@2> N6 "doc"
+            <2> N6 "doc"
         }
     }
 }

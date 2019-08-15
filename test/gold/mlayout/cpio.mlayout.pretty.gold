@@ -15,9 +15,9 @@
             =2 CHARACTER_DEVICE "Character special device"
             =1 PIPE "Named pipe or FIFO"
         }
-        <@11> SUID "SUID bit"
-        <@10> SGID "SGID bit"
-        <@9> STICKY "Sticky bit"
+        <11> SUID "SUID bit"
+        <10> SGID "SGID bit"
+        <9> STICKY "Sticky bit"
         <8:0> PERMISSIONS "Posix permissions"
     }
     [%16] UID "The numeric user id of the owner"

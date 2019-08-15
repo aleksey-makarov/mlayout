@@ -37,27 +37,38 @@
     }
   }
 
+  [32] MEM_TEST {
+    [2@0] MT1 # Two bytes starting at 0
+    [2@]  MT2 # Two bytes starting at the next free location (2)
+    [2]   MT3 # Two bytes starting at the next free location (4)
+    [@5]  MT4 # One byte starting at 5
+    [1@6] MT5 # One byte starting at 6
+    []    MT6 # Byte 7
+    [:]   MT7 # Byte 8 .. 31
+  }
+
   # one 4-byte word at offet 19
   # without "!" this unaligned word would cause an error
   # [%32!] B3 Docs for B3 { # FIXME: bring that ! back
   [%32] B3 "Docs for B3" {
     <2@0>  E1 "Docs for E1"     # Two bits starting at 0
     <2@>   E2 "Docs for E2"     # Two bits starting at the next free location
-    <4>    E3 "Docs for E3"     # 4th bit
-    <5:7>  E4 "Docs for E4"     # Bits 5..7
+    <4>    E21                  # One bit starting at 4
+    <@5>   E22                  # One bit starting at 5
+    <1@6>  E32                  # One bit starting at 6
+    <7>    E3 "Docs for E3"     # 7th bit (= One bit starting at 7)
     <10:8> E5 "Docs for E5"     # Bits 8..10
-    <>     E6 "Docs for E6"     # Bit 11 (inferred)
-    <>     E7 "Docs for E7"     # Bits 12..17 (inferred)
-    {
-      <0:3> EE1 "Docs for EE1"
-      <4:5> EE2 "Docs for EE2"
+    <>     E7 "Docs for E7"     # Bit 11
+    <>     E7 "Docs for E7" {
+      <0:3> EE1 "Docs for EE1"  # Bits 12 .. 15
+      <4:5> EE2 "Docs for EE2"  # Bits 16 .. 19
     }
-    <@{A, B, C}> E8           # 4 bits in each of 3 fields A, B, C
-                              # at 18:21, 22:25 and 26:29
-                              # width is inferred from the contents
-    {
-      <0:3> X "Docs for X"
+    <@{A, B, C}> E8 {
+      <0:2> X "Docs for X"      # 3 bits in each of 3 fields A, B, C
+                                # at 20, 23, 26
+                                # width is inferred from the contents
     }
+    <:>     E7 "Docs for E7"    # Bits 29 .. 31
   }
 
   # one 4-byte word at 0x44

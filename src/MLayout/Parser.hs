@@ -81,19 +81,19 @@ startSetP = Fields <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> n
 atP :: Prsr StartParsed
 atP = symbolic '@' *> (startSetP <|> startArrayOrSimpleP)
 
-fromToP :: Maybe Word -> Prsr LocationParsed
+fromToP :: Maybe Word -> Prsr LocationMB
 fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
 
-fromToOrAtP :: Maybe Word -> Prsr LocationParsed
+fromToOrAtP :: Maybe Word -> Prsr LocationMB
 fromToOrAtP x = fromToP x <|> (WidthStart x <$> atP)
 
-justOneWordLocationBits :: Word -> LocationParsed
+justOneWordLocationBits :: Word -> LocationMB
 justOneWordLocationBits w = WidthStart Nothing (Simple w)
 
-justOneWordLocationMemory :: Word -> LocationParsed
+justOneWordLocationMemory :: Word -> LocationMB
 justOneWordLocationMemory w = WidthStart (Just w) Next
 
-locationInternalsP :: (Word -> LocationParsed) -> Prsr LocationParsed
+locationInternalsP :: (Word -> LocationMB) -> Prsr LocationMB
 locationInternalsP justOneWord = optional wordP >>= maybe
     (fromToOrAtP Nothing <|> (return $ WidthStart Nothing Next))
     (\x -> fromToOrAtP (Just x) <|> (return $ justOneWord x))
@@ -105,25 +105,25 @@ wWidthP = token (char '%' *> (  W8   <$ string "8"
                             <|> W64  <$ string "64"
                             <|> W128 <$ string "128" ))
 
-mLocationInternalsP :: Prsr LocationParsed
+mLocationInternalsP :: Prsr LocationMB
 mLocationInternalsP = locationInternalsP justOneWordLocationMemory
 
 -- [%12@..], [%12]
-wLocationInternalsP :: Prsr LocationParsedWord
+wLocationInternalsP :: Prsr LocationW
 wLocationInternalsP = LocationParsedWord <$> wWidthP <*> (maybe Next id <$> optional atP)
 
-bLocationInternalsP :: Prsr LocationParsed
+bLocationInternalsP :: Prsr LocationMB
 bLocationInternalsP = locationInternalsP justOneWordLocationBits
 
 -- <12:12> <|> <12@..>
-bLocationP :: Prsr LocationParsed
+bLocationP :: Prsr LocationMB
 bLocationP = TPT.angles bLocationInternalsP
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
-mwLocationP :: Prsr (Either LocationParsed LocationParsedWord) -- left for memory, right for word
+mwLocationP :: Prsr (Either LocationMB LocationW) -- left for memory, right for word
 mwLocationP = TPT.brackets (Right <$> wLocationInternalsP <|> Left <$> mLocationInternalsP)
 
-wLocationP :: Prsr LocationParsedWord
+wLocationP :: Prsr LocationW
 wLocationP = TPT.brackets wLocationInternalsP
 
 nameP :: Prsr Text

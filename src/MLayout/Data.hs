@@ -14,6 +14,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -27,6 +28,10 @@ import Data.Text.Prettyprint.Doc
 
 import MLayout.HFunctor
 
+data MLayoutMemory
+data MLayoutWord
+data MLayoutBits
+
 data WordWidth = W8 | W16 | W32 | W64 | W128 deriving Show
 
 data StartParsed
@@ -36,31 +41,23 @@ data StartParsed
     | Periodic (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional start, mandatory number of items (>= 2), optional step
     deriving Show
 
-data LocationParsed
+data LocationMB
     = FromTo (Maybe Word) (Maybe Word)        -- [a:b], a is the first, b is the maximum, not upper bound
     | WidthStart (Maybe Word) StartParsed
     deriving Show
 
-data LocationParsedWord = LocationParsedWord WordWidth StartParsed deriving Show
-
-{- ORIG
-data LocationParsed
-    = FromTo (Maybe Word) (Maybe Word)                     -- [a:b], a is the first, b is the maximum, not upper bound
-    | WordNext Word                                        -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
-    | Word (Maybe Word) Word                               -- [@0x11], [7@0x22], [%16@3]
-    | Fields (Maybe Word) (NonEmpty (Maybe Word, Text))    -- [@{A, B, C}], [%12@{12 A, 34 B}]
-    | Periodic (Maybe Word) (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional width, optional start, mandatory number of items (>= 2), optional step
+data LocationW
+    = LocationParsedWord WordWidth StartParsed
     deriving Show
 
-data LocationResolved -- FIXME
-    = FromToResolved Word Word
-    | FieldsResolved Word (NonEmpty (Word, Text))
-    | PeriodicResolved Word Word Word Word
-    deriving Show
---}
+type family Location a where
+    Location MLayoutMemory = LocationMB
+    Location MLayoutWord   = LocationW
+    Location MLayoutBits   = LocationMB
 
 data ValueItem = ValueItem Integer Text Text -- value, name, doc
 
+-- (* -> *) -> *
 data MemoryItem r
     = MemoryItemMemory (r MLayoutMemory)
     | MemoryItemWord (r MLayoutWord)
@@ -70,19 +67,21 @@ data WordItem r
     | WordItemBits (r MLayoutBits)
     | WordItemValue ValueItem
 
--- (* -> *) -> *
 data BitsItem r
     = BitsItemBits (r MLayoutBits)
     | BitsItemValue ValueItem
 
-data MLayoutMemory
-data MLayoutWord
-data MLayoutBits
+{-
+type family Item :: * -> (* -> *) -> *  where
+    Item MLayoutMemory r = MemoryItem r
+    Item MLayoutWord   r = WordItem r
+    Item MLayoutBits   r = BitsItem r
+-}
 
 data MLayoutF :: (* -> *) -> * -> * where
-    MLayoutMemoryF :: LocationParsed     -> Text -> Text -> [ MemoryItem r ] -> MLayoutF r MLayoutMemory
-    MLayoutWordF ::   LocationParsedWord -> Text -> Text -> [ WordItem r ]   -> MLayoutF r MLayoutWord
-    MLayoutBitsF ::   LocationParsed     -> Text -> Text -> [ BitsItem r ]   -> MLayoutF r MLayoutBits
+    MLayoutMemoryF :: Location MLayoutMemory -> Text -> Text -> [ MemoryItem r ] -> MLayoutF r MLayoutMemory
+    MLayoutWordF ::   Location MLayoutWord   -> Text -> Text -> [ WordItem r ]   -> MLayoutF r MLayoutWord
+    MLayoutBitsF ::   Location MLayoutBits   -> Text -> Text -> [ BitsItem r ]   -> MLayoutF r MLayoutBits
 
 type MLayout = HFix MLayoutF MLayoutMemory
 
@@ -116,13 +115,13 @@ instance HFunctor MLayoutF where
             ff h (BitsItemBits x) = BitsItemBits $ h x
             ff _ (BitsItemValue vi) = BitsItemValue vi
 
-mkM :: LocationParsed     -> Text -> Text -> [MemoryItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutMemory
+mkM :: Location MLayoutMemory -> Text -> Text -> [MemoryItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutMemory
 mkM l n d is = HFix (MLayoutMemoryF l n d is)
 
-mkW :: LocationParsedWord -> Text -> Text -> [WordItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutWord
+mkW :: Location MLayoutWord -> Text -> Text -> [WordItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutWord
 mkW l n d is = HFix (MLayoutWordF l n d is)
 
-mkB :: LocationParsed     -> Text -> Text -> [BitsItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutBits
+mkB :: Location MLayoutBits -> Text -> Text -> [BitsItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutBits
 mkB l n d is = HFix (MLayoutBitsF l n d is)
 
 --------------------------------------------------------------------
@@ -167,81 +166,35 @@ instance Pretty StartParsed where
     pretty (Simple w) = pretty w
     pretty (Fields pairs) = braces $ cat $ punctuate ", " $ toList $ fmap posPretty pairs
         where
-            posPretty (mat, name) = prettyMaybe mat <+> pretty name
+            posPretty (mat, name) = maybe mempty ((<> space) . pretty) mat <> pretty name
     pretty (Periodic mat n ms) = prettyMaybe mat <> brackets (pretty n <> maybe mempty appendStep ms)
         where
             appendStep w = space <> "+" <> pretty w
 
-instance Pretty LocationParsed where
-    -- FromTo (Maybe Word) (Maybe Word)
-    pretty (FromTo mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
-    -- WidthStart (Maybe Word) StartParsed
-    pretty (WidthStart Nothing Next) = mempty
-    pretty (WidthStart mw Next) = prettyMaybe mw
-    pretty (WidthStart mw sp) = prettyMaybe mw <> "@" <> pretty sp
+prettyLocationM :: LocationMB -> Doc ann
+prettyLocationM (FromTo mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
+prettyLocationM (WidthStart Nothing Next) = mempty
+prettyLocationM (WidthStart mw Next) = prettyMaybe mw
+prettyLocationM (WidthStart mw sp) = prettyMaybe mw <> "@" <> pretty sp
 
-instance Pretty LocationParsedWord where
-    -- LocationParsedWord WordWidth StartParsed
-    pretty (LocationParsedWord w Next) = pretty w
-    pretty (LocationParsedWord w sp) = pretty w <> "@" <> pretty sp
+prettyLocationW :: LocationW -> Doc ann
+prettyLocationW (LocationParsedWord w Next) = pretty w
+prettyLocationW (LocationParsedWord w sp) = pretty w <> "@" <> pretty sp
+
+prettyLocationB :: LocationMB -> Doc ann
+prettyLocationB (WidthStart Nothing Next) = mempty
+prettyLocationB (WidthStart Nothing sp) = pretty sp
+prettyLocationB (WidthStart (Just w) Next) = pretty w <> "@"
+prettyLocationB l = prettyLocationM l
 
 prettyAlg :: MLayoutF (K (Doc ann)) :~> (K (Doc ann))
-prettyAlg (MLayoutMemoryF l n d [])  = K (brackets (pretty l) <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutMemoryF l n d mis) = K (brackets (pretty l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyMemoryItem mis) <> line))
-prettyAlg (MLayoutWordF   l n d [])  = K (brackets (pretty l) <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutWordF   l n d wis) = K (brackets (pretty l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyWordItem wis) <> line))
-prettyAlg (MLayoutBitsF   l n d [])  = K (angles (pretty l)   <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutBitsF   l n d bis) = K (angles (pretty l)   <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyBitsItem bis) <> line))
+prettyAlg (MLayoutMemoryF l n d [])  = K (brackets (prettyLocationM l) <+> pretty n <> prettyDoc d)
+prettyAlg (MLayoutMemoryF l n d mis) = K (brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyMemoryItem mis) <> line))
+prettyAlg (MLayoutWordF   l n d [])  = K (brackets (prettyLocationW l) <+> pretty n <> prettyDoc d)
+prettyAlg (MLayoutWordF   l n d wis) = K (brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyWordItem wis) <> line))
+prettyAlg (MLayoutBitsF   l n d [])  = K (angles   (prettyLocationB l) <+> pretty n <> prettyDoc d)
+prettyAlg (MLayoutBitsF   l n d bis) = K (angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyBitsItem bis) <> line))
 
 instance Pretty (MemoryItem (HFix MLayoutF)) where
     pretty (MemoryItemMemory x) = unK $ hcata prettyAlg x
     pretty (MemoryItemWord x)   = unK $ hcata prettyAlg x
-
-{-
---------------------------------------------------------------------------------
-
-
-instance Pretty ValueItem where
-    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
-
-instance Pretty (Item BLocation ()) where
-    pretty (Item l n d ()) = PPD.angles (pretty l) <+> pretty n <> prettyDoc d
-
-instance Pretty (Item MLocation BLayout) where
-    pretty (Item l n d _) = PPD.brackets (pretty l) <+> pretty n <> prettyDoc d
-
-class PrettyInternals a where
-    prettyInternals :: a -> Doc ann
-    prettyInternalsIsNull :: a -> Bool
-
-instance PrettyInternals (Item MLocation BLayout) where
-    prettyInternals (Item _ _ _ b) = pretty b
-    prettyInternalsIsNull (Item _ _ _ b) = XTree.null b
-
-prettyBLayoutAlg :: (Pretty l, Pretty n) => XTreeF l n (XTree l n, Doc ann) -> Doc ann
-prettyBLayoutAlg (XTreeF ls) = PPD.vsep $ fmap (either pretty prettyr) ls
-    where
-        prettyr (item, (subtree, subtreeFormatted)) =
-            pretty item <> if XTree.null subtree
-                               then mempty
-                               else PPD.space <> PPD.braces (line <> indent 4 subtreeFormatted <> line)
-
-instance (Pretty l, Pretty n) => Pretty (XTree l n) where
-    pretty = para prettyBLayoutAlg
-
-prettyMLayoutAlg :: (Pretty n, PrettyInternals n) => TreeF n (Doc ann) -> Doc ann
-prettyMLayoutAlg (TreeF item s) = pretty item <> prettyBody
-    where
-        prettyBody = if prettyInternalsIsNull item && P.null s
-                         then mempty
-                         else PPD.space <> PPD.braces (line <> indent 4 (prettyInternals item <> sepbm <> PPD.vsep s) <> line)
-        sepbm = if prettyInternalsIsNull item || P.null s
-                    then mempty
-                    else line
-
-instance (Pretty n, PrettyInternals n) => Pretty (Tree n) where
-    pretty = cata prettyMLayoutAlg
-
---------------------------------------------------------------------------------
-
--}
