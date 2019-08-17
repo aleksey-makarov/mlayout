@@ -12,6 +12,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -126,21 +127,21 @@ mkB l n d is = HFix (MLayoutBitsF l n d is)
 instance Pretty ValueItem where
     pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
 
-prettyMemoryItem :: MemoryItem (K (Doc ann)) -> Doc ann
-prettyMemoryItem (MemoryItemMemory (K doc)) = doc
-prettyMemoryItem (MemoryItemWord (K doc)) = doc
+class PrettyRec c ann where
+    prettyRec :: c -> Doc ann
 
-prettyWordItem :: WordItem (K (Doc ann)) -> Doc ann
-prettyWordItem (WordItemWord (K doc)) = doc
-prettyWordItem (WordItemBits (K doc)) = doc
-prettyWordItem (WordItemValue vi) = pretty vi
+instance PrettyRec (MemoryItem (K (Doc ann))) ann where
+    prettyRec (MemoryItemMemory (K doc)) = doc
+    prettyRec (MemoryItemWord (K doc)) = doc
 
-prettyBitsItem :: BitsItem (K (Doc ann)) -> Doc ann
-prettyBitsItem (BitsItemBits (K doc)) = doc
-prettyBitsItem (BitsItemValue vi) = pretty vi
+instance PrettyRec (WordItem (K (Doc ann))) ann where
+    prettyRec (WordItemWord (K doc)) = doc
+    prettyRec (WordItemBits (K doc)) = doc
+    prettyRec (WordItemValue vi) = pretty vi
 
-prettySubitems :: (a -> Doc ann) -> [a] -> Doc ann
-prettySubitems f l = vsep $ fmap f l
+instance PrettyRec (BitsItem (K (Doc ann))) ann where
+    prettyRec (BitsItemBits (K doc)) = doc
+    prettyRec (BitsItemValue vi) = pretty vi
 
 prettyMaybe :: Pretty w => Maybe w -> Doc ann
 prettyMaybe (Just x) = pretty x
@@ -184,13 +185,14 @@ prettyLocationB (WidthStart Nothing sp) = pretty sp
 prettyLocationB (WidthStart (Just w) Next) = pretty w <> "@"
 prettyLocationB l = prettyLocationM l
 
+prettySubitems :: PrettyRec c ann => [c] -> Doc ann
+prettySubitems [] = mempty
+prettySubitems is = space <> braces (line <> indent 4 (vsep $ fmap prettyRec is) <> line)
+
 prettyAlg :: MLayoutF (K (Doc ann)) :~> (K (Doc ann))
-prettyAlg (MLayoutMemoryF l n d [])  = K (brackets (prettyLocationM l) <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutMemoryF l n d mis) = K (brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyMemoryItem mis) <> line))
-prettyAlg (MLayoutWordF   l n d [])  = K (brackets (prettyLocationW l) <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutWordF   l n d wis) = K (brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyWordItem wis) <> line))
-prettyAlg (MLayoutBitsF   l n d [])  = K (angles   (prettyLocationB l) <+> pretty n <> prettyDoc d)
-prettyAlg (MLayoutBitsF   l n d bis) = K (angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <+> braces (line <> indent 4 (prettySubitems prettyBitsItem bis) <> line))
+prettyAlg (MLayoutMemoryF l n d mis) = K $ brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
+prettyAlg (MLayoutWordF   l n d wis) = K $ brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
+prettyAlg (MLayoutBitsF   l n d bis) = K $ angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
 
 instance Pretty (MemoryItem (HFix MLayoutF)) where
     pretty (MemoryItemMemory x) = unK $ hcata prettyAlg x
