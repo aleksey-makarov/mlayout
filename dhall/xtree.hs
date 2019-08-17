@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
-{- stack script --resolver nightly-2019-07-12
+{- stack script --resolver nightly-2019-08-17
     --package containers
     --package dhall
     --package directory
