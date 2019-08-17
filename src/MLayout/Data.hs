@@ -16,6 +16,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -23,8 +24,8 @@
 
 module MLayout.Data where
 
-import Data.Text
 import Data.List.NonEmpty
+import Data.Text
 import Data.Text.Prettyprint.Doc
 
 import MLayout.HFunctor
@@ -32,6 +33,9 @@ import MLayout.HFunctor
 data MLayoutMemory
 data MLayoutWord
 data MLayoutBits
+
+data Parsed
+data Resolved
 
 data WordWidth = W8 | W16 | W32 | W64 | W128 deriving Show
 
@@ -51,10 +55,18 @@ data LocationW
     = LocationParsedWord WordWidth StartParsed
     deriving Show
 
-type family Location a where
-    Location MLayoutMemory = LocationMB
-    Location MLayoutWord   = LocationW
-    Location MLayoutBits   = LocationMB
+data LocationResolved
+    = ResolvedFromTo   Word Word
+    | ResolvedFields   Word (NonEmpty (Word, Text))
+    | ResolvedPeriodic Word Word Word Word
+
+type family Location l t = r | r -> l where
+    Location Parsed MLayoutMemory = LocationMB
+    Location Parsed MLayoutWord   = LocationW
+    Location Parsed MLayoutBits   = LocationMB
+    Location Resolved MLayoutMemory = (LocationMB, LocationResolved)
+    Location Resolved MLayoutWord   = (LocationW,  LocationResolved)
+    Location Resolved MLayoutBits   = (LocationMB, LocationResolved)
 
 data ValueItem = ValueItem Integer Text Text -- value, name, doc
 
@@ -91,35 +103,35 @@ instance HFunctor' BitsItem where
     hfmap' f (BitsItemBits x) = BitsItemBits $ f x
     hfmap' _ (BitsItemValue x) = BitsItemValue x
 
-data MLayoutF :: (* -> *) -> * -> * where
-    MLayoutMemoryF :: Location MLayoutMemory -> Text -> Text -> [ MemoryItem r ] -> MLayoutF r MLayoutMemory
-    MLayoutWordF ::   Location MLayoutWord   -> Text -> Text -> [ WordItem r ]   -> MLayoutF r MLayoutWord
-    MLayoutBitsF ::   Location MLayoutBits   -> Text -> Text -> [ BitsItem r ]   -> MLayoutF r MLayoutBits
+data MLayoutF :: * -> (* -> *) -> * -> * where
+    MLayoutMemoryF :: Location l MLayoutMemory -> Text -> Text -> [ MemoryItem r ] -> MLayoutF l r MLayoutMemory
+    MLayoutWordF ::   Location l MLayoutWord   -> Text -> Text -> [ WordItem r ]   -> MLayoutF l r MLayoutWord
+    MLayoutBitsF ::   Location l MLayoutBits   -> Text -> Text -> [ BitsItem r ]   -> MLayoutF l r MLayoutBits
 
-type MLayout = HFix MLayoutF MLayoutMemory
+type MLayout = HFix (MLayoutF Parsed) MLayoutMemory
 
-type MLayoutParsed = HFix MLayoutF MLayoutMemory
-type WLayoutParsed = HFix MLayoutF MLayoutWord
-type BLayoutParsed = HFix MLayoutF MLayoutBits
+type MLayoutParsed = HFix (MLayoutF Parsed) MLayoutMemory
+type WLayoutParsed = HFix (MLayoutF Parsed)  MLayoutWord
+type BLayoutParsed = HFix (MLayoutF Parsed)  MLayoutBits
 
-type MemoryItemParsed = MemoryItem (HFix MLayoutF)
-type MemoryItemResolved = MemoryItem (HFix MLayoutF) -- FIXME
+type MemoryItemParsed = MemoryItem (HFix (MLayoutF Parsed))
+type MemoryItemResolved = MemoryItem (HFix (MLayoutF Resolved))
 
-type WordItemParsed = WordItem (HFix MLayoutF)
-type BitsItemParsed = BitsItem (HFix MLayoutF)
+type WordItemParsed = WordItem (HFix (MLayoutF Parsed))
+type BitsItemParsed = BitsItem (HFix (MLayoutF Parsed))
 
-instance HFunctor MLayoutF where
+instance HFunctor (MLayoutF l) where
     hfmap f (MLayoutMemoryF l n d mis) = MLayoutMemoryF l n d $ fmap (hfmap' f) mis
-    hfmap f (MLayoutWordF l n d wis) = MLayoutWordF l n d $ fmap (hfmap' f) wis
-    hfmap f (MLayoutBitsF l n d bis) = MLayoutBitsF l n d $ fmap (hfmap' f) bis
+    hfmap f (MLayoutWordF   l n d wis) = MLayoutWordF   l n d $ fmap (hfmap' f) wis
+    hfmap f (MLayoutBitsF   l n d bis) = MLayoutBitsF   l n d $ fmap (hfmap' f) bis
 
-mkM :: Location MLayoutMemory -> Text -> Text -> [MemoryItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutMemory
+mkM :: Location l MLayoutMemory -> Text -> Text -> [MemoryItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutMemory
 mkM l n d is = HFix (MLayoutMemoryF l n d is)
 
-mkW :: Location MLayoutWord -> Text -> Text -> [WordItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutWord
+mkW :: Location l MLayoutWord -> Text -> Text -> [WordItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutWord
 mkW l n d is = HFix (MLayoutWordF l n d is)
 
-mkB :: Location MLayoutBits -> Text -> Text -> [BitsItem (HFix MLayoutF)] -> HFix MLayoutF MLayoutBits
+mkB :: Location l MLayoutBits -> Text -> Text -> [BitsItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutBits
 mkB l n d is = HFix (MLayoutBitsF l n d is)
 
 --------------------------------------------------------------------
@@ -169,31 +181,44 @@ instance Pretty StartParsed where
         where
             appendStep w = space <> "+" <> pretty w
 
-prettyLocationM :: LocationMB -> Doc ann
-prettyLocationM (FromTo mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
-prettyLocationM (WidthStart Nothing Next) = mempty
-prettyLocationM (WidthStart mw Next) = prettyMaybe mw
-prettyLocationM (WidthStart mw sp) = prettyMaybe mw <> "@" <> pretty sp
+instance Pretty LocationResolved where
+    pretty (ResolvedFromTo   from to )    = pretty from <> ":" <> pretty to
+    pretty (ResolvedFields   w pairs)     = pretty w    <> "@" <> braces (cat $ punctuate ", " $ toList $ fmap posPretty pairs)
+        where
+            posPretty (at, name) = pretty at <+> pretty name
+    pretty (ResolvedPeriodic w at n step) = pretty w    <> "@" <> pretty at <> brackets (pretty n <+> "+" <> pretty step)
 
-prettyLocationW :: LocationW -> Doc ann
-prettyLocationW (LocationParsedWord w Next) = pretty w
-prettyLocationW (LocationParsedWord w sp) = pretty w <> "@" <> pretty sp
+class PrettyLocation l where
+    prettyLocationM :: Location l MLayoutMemory -> Doc ann
+    prettyLocationW :: Location l MLayoutWord -> Doc ann
+    prettyLocationB :: Location l MLayoutBits -> Doc ann
 
-prettyLocationB :: LocationMB -> Doc ann
-prettyLocationB (WidthStart Nothing Next) = mempty
-prettyLocationB (WidthStart Nothing sp) = pretty sp
-prettyLocationB (WidthStart (Just w) Next) = pretty w <> "@"
-prettyLocationB l = prettyLocationM l
+instance PrettyLocation Parsed where
+    prettyLocationM (FromTo mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
+    prettyLocationM (WidthStart Nothing Next) = mempty
+    prettyLocationM (WidthStart mw Next) = prettyMaybe mw
+    prettyLocationM (WidthStart mw sp) = prettyMaybe mw <> "@" <> pretty sp
+    prettyLocationW (LocationParsedWord w Next) = pretty w
+    prettyLocationW (LocationParsedWord w sp) = pretty w <> "@" <> pretty sp
+    prettyLocationB (WidthStart Nothing Next) = mempty
+    prettyLocationB (WidthStart Nothing sp) = pretty sp
+    prettyLocationB (WidthStart (Just w) Next) = pretty w <> "@"
+    prettyLocationB l = prettyLocationM l
+
+instance PrettyLocation Resolved where
+    prettyLocationM (_, l) = pretty l
+    prettyLocationW (_, l) = pretty l
+    prettyLocationB (_, l) = pretty l
 
 prettySubitems :: PrettyRec c ann => [c] -> Doc ann
 prettySubitems [] = mempty
 prettySubitems is = space <> braces (line <> indent 4 (vsep $ fmap prettyRec is) <> line)
 
-prettyAlg :: MLayoutF (K (Doc ann)) :~> (K (Doc ann))
+prettyAlg :: PrettyLocation l => MLayoutF l (K (Doc ann)) :~> (K (Doc ann))
 prettyAlg (MLayoutMemoryF l n d mis) = K $ brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
 prettyAlg (MLayoutWordF   l n d wis) = K $ brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
 prettyAlg (MLayoutBitsF   l n d bis) = K $ angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
 
-instance Pretty (MemoryItem (HFix MLayoutF)) where
+instance PrettyLocation l => Pretty (MemoryItem (HFix (MLayoutF l))) where
     pretty (MemoryItemMemory x) = unK $ hcata prettyAlg x
     pretty (MemoryItemWord x)   = unK $ hcata prettyAlg x

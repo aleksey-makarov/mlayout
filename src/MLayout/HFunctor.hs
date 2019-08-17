@@ -20,4 +20,4 @@ hcata f = run
     where run :: HFix h :~> a
           run (HFix t) = f (hfmap run t)
 
-newtype K x y = K { unK :: x }
+newtype K x y = K { unK :: x } -- FIXME use Const
