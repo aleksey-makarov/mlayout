@@ -27,7 +27,7 @@ import           Formatting (Format, runFormat, int, (%))
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
-import           Text.Parser.Token as TPT
+import           Text.Parser.Token
 import           Text.Parser.Token.Highlight
 import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
@@ -52,7 +52,7 @@ startSimpleP :: Maybe Word -> Prsr StartParsed
 startSimpleP maybeStart = return $ maybe Next Simple maybeStart
 
 startArrayP :: Maybe Word -> Prsr StartParsed
-startArrayP maybeStart = TPT.brackets (Periodic maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
+startArrayP maybeStart = brackets (Periodic maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
 
 startArrayOrSimpleP :: Prsr StartParsed
 startArrayOrSimpleP = do
@@ -60,7 +60,7 @@ startArrayOrSimpleP = do
     startArrayP x <|> startSimpleP x
 
 startSetP :: Prsr StartParsed
-startSetP = Fields <$> (TPT.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+startSetP = Fields <$> (braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
 atP :: Prsr StartParsed
 atP = symbolic '@' *> (startSetP <|> startArrayOrSimpleP)
@@ -101,14 +101,14 @@ bLocationInternalsP = locationInternalsP justOneWordLocationBits
 
 -- <12:12> <|> <12@..>
 bLocationP :: Prsr LocationMB
-bLocationP = TPT.angles bLocationInternalsP
+bLocationP = angles bLocationInternalsP
 
 -- [mWordP] <|> [:12] <|> [@12] <|> [12:12] <|> [12@..] <|> [12]
 mwLocationP :: Prsr (Either LocationMB LocationW) -- left for memory, right for word
-mwLocationP = TPT.brackets (Right <$> wLocationInternalsP <|> Left <$> mLocationInternalsP)
+mwLocationP = brackets (Right <$> wLocationInternalsP <|> Left <$> mLocationInternalsP)
 
 wLocationP :: Prsr LocationW
-wLocationP = TPT.brackets wLocationInternalsP
+wLocationP = brackets wLocationInternalsP
 
 nameP :: Prsr Text
 nameP = ident (IdentifierStyle "Name Style" upper (alphaNum <|> oneOf "_'") HS.empty Identifier ReservedIdentifier) <?> "id"
@@ -120,7 +120,7 @@ vItemP :: Prsr ValueItem
 vItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value item"
 
 maybeSubitems :: Prsr [a] -> Prsr [a]
-maybeSubitems subitemParser = TPT.braces subitemParser <|> return []
+maybeSubitems subitemParser = braces subitemParser <|> return []
 
 bLayoutP :: Prsr BitsItemParsed
 bLayoutP = (BitsItemBits <$> (mkB <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValue <$> vItemP)
