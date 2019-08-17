@@ -24,6 +24,7 @@
 
 module MLayout.Data where
 
+import Control.Applicative
 import Data.List.NonEmpty
 import Data.Text
 import Data.Text.Prettyprint.Doc
@@ -142,17 +143,17 @@ instance Pretty ValueItem where
 class PrettyRec c ann where
     prettyRec :: c -> Doc ann
 
-instance PrettyRec (MemoryItem (K (Doc ann))) ann where
-    prettyRec (MemoryItemMemory (K doc)) = doc
-    prettyRec (MemoryItemWord (K doc)) = doc
+instance PrettyRec (MemoryItem (Const (Doc ann))) ann where
+    prettyRec (MemoryItemMemory (Const doc)) = doc
+    prettyRec (MemoryItemWord (Const doc)) = doc
 
-instance PrettyRec (WordItem (K (Doc ann))) ann where
-    prettyRec (WordItemWord (K doc)) = doc
-    prettyRec (WordItemBits (K doc)) = doc
+instance PrettyRec (WordItem (Const (Doc ann))) ann where
+    prettyRec (WordItemWord (Const doc)) = doc
+    prettyRec (WordItemBits (Const doc)) = doc
     prettyRec (WordItemValue vi) = pretty vi
 
-instance PrettyRec (BitsItem (K (Doc ann))) ann where
-    prettyRec (BitsItemBits (K doc)) = doc
+instance PrettyRec (BitsItem (Const (Doc ann))) ann where
+    prettyRec (BitsItemBits (Const doc)) = doc
     prettyRec (BitsItemValue vi) = pretty vi
 
 prettyMaybe :: Pretty w => Maybe w -> Doc ann
@@ -214,11 +215,11 @@ prettySubitems :: PrettyRec c ann => [c] -> Doc ann
 prettySubitems [] = mempty
 prettySubitems is = space <> braces (line <> indent 4 (vsep $ fmap prettyRec is) <> line)
 
-prettyAlg :: PrettyLocation l => MLayoutF l (K (Doc ann)) :~> (K (Doc ann))
-prettyAlg (MLayoutMemoryF l n d mis) = K $ brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
-prettyAlg (MLayoutWordF   l n d wis) = K $ brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
-prettyAlg (MLayoutBitsF   l n d bis) = K $ angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
+prettyAlg :: PrettyLocation l => MLayoutF l (Const (Doc ann)) :~> (Const (Doc ann))
+prettyAlg (MLayoutMemoryF l n d mis) = Const $ brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
+prettyAlg (MLayoutWordF   l n d wis) = Const $ brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
+prettyAlg (MLayoutBitsF   l n d bis) = Const $ angles   (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
 
 instance PrettyLocation l => Pretty (MemoryItem (HFix (MLayoutF l))) where
-    pretty (MemoryItemMemory x) = unK $ hcata prettyAlg x
-    pretty (MemoryItemWord x)   = unK $ hcata prettyAlg x
+    pretty (MemoryItemMemory x) = getConst $ hcata prettyAlg x
+    pretty (MemoryItemWord x)   = getConst $ hcata prettyAlg x

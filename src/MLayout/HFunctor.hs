@@ -19,5 +19,3 @@ hcata :: forall h a . HFunctor h => (h a :~> a) -> HFix h :~> a
 hcata f = run
     where run :: HFix h :~> a
           run (HFix t) = f (hfmap run t)
-
-newtype K x y = K { unK :: x } -- FIXME use Const
