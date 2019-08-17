@@ -71,13 +71,6 @@ data BitsItem r
     = BitsItemBits (r MLayoutBits)
     | BitsItemValue ValueItem
 
-{-
-type family Item :: * -> (* -> *) -> *  where
-    Item MLayoutMemory r = MemoryItem r
-    Item MLayoutWord   r = WordItem r
-    Item MLayoutBits   r = BitsItem r
--}
-
 data MLayoutF :: (* -> *) -> * -> * where
     MLayoutMemoryF :: Location MLayoutMemory -> Text -> Text -> [ MemoryItem r ] -> MLayoutF r MLayoutMemory
     MLayoutWordF ::   Location MLayoutWord   -> Text -> Text -> [ WordItem r ]   -> MLayoutF r MLayoutWord
