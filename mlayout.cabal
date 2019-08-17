@@ -24,7 +24,6 @@ library
                        , formatting >= 6.3.6
                        , parsers >= 0.12.9
                        , prettyprinter
-                       , recursion-schemes
                        , text >= 1.2.3.0
                        , trifecta >= 2
                        , unordered-containers
