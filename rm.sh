@@ -1,19 +1,4 @@
+set -x
 
-top=`pwd`
-
-rm_out() {
-    rm -f *.json *.pretty *.err *.c
-}
-
-rm_gold() {
-    rm -f *.json.gold *.c.gold
-}
-
-cd $top/test/out
-rm_out
-cd $top/test/out/mlayout
-rm_out
-cd $top/test/gold/
-rm_gold
-cd $top/test/gold/mlayout
-rm_gold
+git clean -f test/gold.*
+rm test/out.*/*

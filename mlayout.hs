@@ -5,6 +5,7 @@
 
 module Main (main) where
 
+import           Data.Text.IO as DTI
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Text
 import           Options.Applicative
@@ -88,8 +89,8 @@ parse inf = TRI.parseFromFileEx parser inf >>= \ case
 resolve :: [MemoryItemParsed] -> IO [MemoryItemResolved]
 resolve unresolvedLayout = either handleResolverError return (MLR.resolve unresolvedLayout)
     where
-       handleResolverError e = do
-           print e
+       handleResolverError (MLR.ResolverException t) = do
+           DTI.hPutStrLn stderr t
            exitWith $ ExitFailure 1
 
 mlayout :: MLayoutOptions ->  IO ()

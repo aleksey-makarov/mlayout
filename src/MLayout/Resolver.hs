@@ -2,64 +2,64 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module MLayout.Resolver
     ( resolve
+    , ResolverException (..)
     ) where
 
 import           Control.Exception
--- import           Data.Functor.Foldable
--- import           Data.List.NonEmpty
+import           Data.List.NonEmpty
 import           Data.Text
--- import           Data.Text.Prettyprint.Doc
+
 
 import           MLayout.Data
+import           MLayout.HFunctor
 
-{-
+data ResolverException = ResolverException Text deriving (Exception, Show, Eq, Ord)
 
-data Location
-    = FromTo Word Word                    -- [a:b], a is the first, b is the maximum, not upper bound
-    | Fields Word (NonEmpty (Word, Text)) -- [@{A, B, C}], [%12@{12 A, 34 B}] means width and the non-empty list of fields
-    | Periodic Word Word Word Word        -- [1@2[3 +4]] means width, start, number of items (>= 2), step
-    deriving Show
+x :: (Maybe Word) -> Word
+x = maybe 0 id
 
-type BLayout = XTree P.ValueItem (P.Item Location ())
+ww :: WordWidth -> Word
+ww W8   = 1
+ww W16  = 2
+ww W32  = 4
+ww W64  = 8
+ww W128 = 16
 
-type MLayout = Tree (P.Item Location BLayout)
+resolvePositions :: NonEmpty (Maybe Word, Text) -> NonEmpty (Word, Text)
+resolvePositions = fmap f
+    where
+        f (mAt, name) = (x mAt, name)
 
-instance Pretty Location where
-    -- FromTo Word Word
-    pretty (FromTo from to) = pretty from <> "+" <> pretty to
-    -- Fields Word (NonEmpty (Word, Text))
-    pretty (Fields w pairs) = pretty w <> "@" <> (braces $ cat $ punctuate ", " $ toList $ fmap posPretty pairs)
-        where
-            posPretty (mat, name) = pretty mat <+> pretty name
-    -- Periodic Word Word Word Word
-    pretty (Periodic w start n step) = pretty w <> "@" <> pretty start <> brackets (pretty n <+> "+" <> pretty step)
+resolveMB :: LocationMB -> (LocationMB, LocationResolved)
+resolveMB p@(FromTo mFrom _)                         = (p, ResolvedWidthStart 0 (x mFrom))
+resolveMB p@(WidthStart mWidth Next)                   = (p, ResolvedWidthStart (x mWidth) 0)
+resolveMB p@(WidthStart mWidth (Simple at))            = (p, ResolvedWidthStart (x mWidth) at)
+resolveMB p@(WidthStart mWidth (Fields positions))     = (p, ResolvedFields (x mWidth) (resolvePositions positions))
+resolveMB p@(WidthStart mWidth (Periodic mAt n mStep)) = (p, ResolvedPeriodic (x mWidth) (x mAt) n (x mStep))
 
-instance Pretty (P.Item Location ()) where
-    pretty (P.Item l n d ()) = angles (pretty l) <+> pretty n <> P.prettyDoc d
+resolveW :: LocationW -> (LocationW, LocationResolved)
+resolveW p@(LocationParsedWord w Next)                   = (p, ResolvedWidthStart (ww w) 0)
+resolveW p@(LocationParsedWord w (Simple at))            = (p, ResolvedWidthStart (ww w) at)
+resolveW p@(LocationParsedWord w (Fields positions))     = (p, ResolvedFields (ww w) (resolvePositions positions))
+resolveW p@(LocationParsedWord w (Periodic mAt n mStep)) = (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
 
-instance Pretty (P.Item Location BLayout) where
-    pretty (P.Item l n d _) = brackets (pretty l) <+> pretty n <> P.prettyDoc d
+resolveAlg :: MLayoutF Parsed (HFix (MLayoutF Resolved)) :~> HFix (MLayoutF Resolved)
+resolveAlg (MLayoutMemoryF l n d mis) = mkM (resolveMB l) n d mis
+resolveAlg (MLayoutWordF   l n d wis) = mkW (resolveW  l) n d wis
+resolveAlg (MLayoutBitsF   l n d bis) = mkB (resolveMB l) n d bis
 
-instance P.PrettyInternals (P.Item Location BLayout) where
-    prettyInternals (P.Item _ _ _ b) = pretty b
-    prettyInternalsIsNull (P.Item _ _ _ b) = XTree.null b
-
-resolveMLayoutAlg :: (forall a . TreeF (P.Item P.MLocation P.BLayout) (Either ResolverException a) -> Either ResolverException (TreeF (P.Item Location BLayout) a))
-resolveMLayoutAlg = undefined
-
-resolveMLayout :: P.MLayout -> Either ResolverException MLayout
-resolveMLayout = transverse resolveMLayoutAlg
--}
-
-data ResolverException = CmdlineException Text deriving (Exception, Show, Eq, Ord)
+resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
+resolve1 (MemoryItemMemory m) = Right $ MemoryItemMemory $ hcata resolveAlg m
+resolve1 (MemoryItemWord m)   = Right $ MemoryItemWord   $ hcata resolveAlg m
 
 resolve :: [MemoryItemParsed] -> Either ResolverException [MemoryItemResolved]
--- resolve layouts = sequence $ fmap resolveMLayout layouts
-resolve = undefined
+resolve layouts = sequence $ fmap resolve1 layouts
 
 {-
 -- FIXME: use this for itemToList

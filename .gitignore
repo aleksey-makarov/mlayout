@@ -1,4 +1,5 @@
 .stack-work/
 test/out.*/**/*
 !test/out.*/.emptydir
+stack.yaml.lock
 

@@ -57,9 +57,9 @@ data LocationW
     deriving Show
 
 data LocationResolved
-    = ResolvedFromTo   Word Word
-    | ResolvedFields   Word (NonEmpty (Word, Text))
-    | ResolvedPeriodic Word Word Word Word
+    = ResolvedWidthStart Word Word
+    | ResolvedFields     Word (NonEmpty (Word, Text))
+    | ResolvedPeriodic   Word Word Word Word
 
 type family Location l t = r | r -> l where
     Location Parsed MLayoutMemory = LocationMB
@@ -183,11 +183,11 @@ instance Pretty StartParsed where
             appendStep w = space <> "+" <> pretty w
 
 instance Pretty LocationResolved where
-    pretty (ResolvedFromTo   from to )    = pretty from <> ":" <> pretty to
-    pretty (ResolvedFields   w pairs)     = pretty w    <> "@" <> braces (cat $ punctuate ", " $ toList $ fmap posPretty pairs)
+    pretty (ResolvedWidthStart w at)      = pretty w <> "@" <> pretty at
+    pretty (ResolvedFields w pairs)       = pretty w <> "@" <> braces (cat $ punctuate ", " $ toList $ fmap posPretty pairs)
         where
             posPretty (at, name) = pretty at <+> pretty name
-    pretty (ResolvedPeriodic w at n step) = pretty w    <> "@" <> pretty at <> brackets (pretty n <+> "+" <> pretty step)
+    pretty (ResolvedPeriodic w at n step) = pretty w <> "@" <> pretty at <> brackets (pretty n <+> "+" <> pretty step)
 
 class PrettyLocation l where
     prettyLocationM :: Location l MLayoutMemory -> Doc ann
