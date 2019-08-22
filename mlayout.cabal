@@ -35,12 +35,15 @@ test-suite mlayout-test
     type:                exitcode-stdio-1.0
     main-is:             Main.hs
     build-depends:       base >= 4.9 && < 5
-                       , foldl
+                       , filepath
+                       , pipes
+                       , pipes-safe
+                       , typed-process
                        , tasty >= 1.1.0.3
                        , tasty-golden
                        , tasty-hunit >= 0.10.0.1
                        , text
-                       , turtle >= 1.5.10
+                       , unix
     ghc-options:         -Wall -threaded
     default-language:    Haskell2010
 
@@ -52,14 +55,10 @@ executable mlayout
                        , bytestring
                        , mlayout
                        , filepath
-                       , foldl
                        , optparse-applicative
                        , prettyprinter
                        , text
-                       -- , time
-                       -- , timerep
                        , trifecta >= 2
-                       -- , turtle >= 1.5.10
                        , unix
     ghc-options:         -Wall -threaded
     default-language:    Haskell2010

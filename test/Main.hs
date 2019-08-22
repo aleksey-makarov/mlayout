@@ -1,85 +1,126 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main (main) where
 
-import           Control.Foldl hiding (fold, mapM_)
--- import           Data.Text (unpack)
-import           Prelude hiding (FilePath)
+import           Control.Monad
+import           Data.List as L
+import           Pipes as P
+import           Pipes.Prelude as P
+import           Pipes.Safe as PS
+import           System.Exit
+import           System.FilePath.Posix
+import           System.IO
+import           System.Posix.Directory
+import           System.Posix.Files
+import           System.Process.Typed
 import           Test.Tasty
 import           Test.Tasty.Golden
 import           Test.Tasty.HUnit
-import           Turtle hiding (f, x, e)
 
-rmIfExists :: MonadIO io => FilePath -> io ()
-rmIfExists p = do
-    b <- testfile p
-    when b $ rm p
+-- https://stackoverflow.com/questions/44267928/listing-all-the-files-under-a-directory-recursively-using-pipes
 
-makeTestCase :: FilePath -> FilePath -> FilePath -> Shell [TestTree]
-makeTestCase outDir goldDir path =
-    if path `hasExtension` "mlayout"
-        then do
-            rmIfExists errPath
-            rmIfExists prettyPath
-            -- mapM_ (rmIfExists . cPath) templates
-            return $ if (dropExtension path) `hasExtension` "err"
-                then [mkErr]
-                else [mkGoldPretty] -- : mkGoldCs
-        else mzero
+rmIfExists :: FilePath -> IO ()
+rmIfExists f = do
+    b <- fileExist f
+    when b $ removeLink f
+
+callMLayout :: String -> FilePath -> FilePath -> FilePath -> IO ()
+callMLayout flag i o e = do
+    rmIfExists o
+    rmIfExists e
+    ec <- withFile o WriteMode (\ oh ->
+         withFile e WriteMode (\ eh -> do
+            let cfg = setStdout (useHandleClose oh)
+                    $ setStderr (useHandleClose eh)
+                    $ proc "mlayout" [flag, i]
+            runProcess cfg))
+    case ec of
+        ExitSuccess   -> rmIfExists e
+        ExitFailure _ -> rmIfExists o
+
+mkTestParseOk :: FilePath -> FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+mkTestParseOk idir iname odir gdir oname = goldenVsFile (oname ++ " (parse)") g o mk
     where
+        i = idir </> iname
+        o = odir </> oname <.> "p" <.> "mlayout"
+        e = odir </> oname <.> "p" <.> "err"
+        g = gdir </> oname <.> "p" <.> "mlayout"
+        mk = callMLayout "-p" i o e
 
-        pathBaseName = encodeString $ basename path
-        pathFile = filename path
+mkTestResolveOk :: FilePath -> FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+mkTestResolveOk idir iname odir gdir oname = goldenVsFile (oname ++ " (resolve)") g o mk
+    where
+        i = idir </> iname
+        o = odir </> oname <.> "r" <.> "mlayout"
+        e = odir </> oname <.> "r" <.> "err"
+        g = gdir </> oname <.> "r" <.> "mlayout"
+        mk = callMLayout "-P" i o e
 
-        testErrorName  = pathBaseName ++ " (error)"
-        testPrettyName = pathBaseName ++ " (pretty)"
-        -- testCName t    = unpack $ format (fp % " (" % fp % ")") (basename path) (filename t)
+mkTestParseErr :: FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+mkTestParseErr idir iname odir oname = testCase (oname ++ " (parse err)") $ do
+    callMLayout "-p" i o e
+    b <- fileExist e
+    unless b $ assertFailure "should fail"
+    where
+        i = idir </> iname
+        o = odir </> oname <.> "p" <.> "mlayout"
+        e = odir </> oname <.> "p" <.> "err"
 
-        -- templates :: [FilePath]
-        -- templates = ["templates/c.ede"]
+mkTestResolveErr :: FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+mkTestResolveErr idir iname odir oname = testCase (oname ++ " (resolve err)") $ do
+    callMLayout "-P" i o e
+    b <- fileExist e
+    unless b $ assertFailure "should fail"
+    where
+        i = idir </> iname
+        o = odir </> oname <.> "r" <.> "mlayout"
+        e = odir </> oname <.> "r" <.> "err"
 
-        errPath        = outDir  </> pathFile <.> "err"
-        prettyGoldPath = goldDir </> pathFile <.> "pretty" <.> "gold"
-        prettyPath     = outDir  </> pathFile <.> "pretty"
-        -- cPath     t    = outDir  </> pathFile <.> (format fp $ basename t)
-        -- cGoldPath t    = goldDir </> pathFile <.> (format fp $ basename t) <.> "gold"
+lsPipe :: FilePath -> Producer' FilePath (PS.SafeT IO) ()
+lsPipe dirpath =
+    PS.bracket (openDirStream dirpath) closeDirStream (forever . lsPipe')
+        >-> P.takeWhile (/= "")
+        >-> P.filter (not . flip L.elem [".", ".."])
+    where
+        lsPipe' stream = liftIO (readDirStream stream) >>= yield
 
-        mkSomething :: Text -> FilePath -> IO ()
-        mkSomething flag okPath = do
-            ec <- shell (format ("mlayout " % s % " " % fp % " " % fp % " 2> " % fp) flag path okPath errPath) empty
-            case ec of
-                ExitSuccess -> rmIfExists errPath
-                ExitFailure _ -> rmIfExists okPath
+treePipe :: FilePath -> Producer' FilePath (PS.SafeT IO) ()
+treePipe path = lsPipe path >-> forever treePipe'
+    where
+        treePipe' = do
+                entry <- await
+                let entry' = path </> entry
+                status <- liftIO $ getSymbolicLinkStatus entry'
+                when (isDirectory status && (not $ isSymbolicLink status)) (treePipe entry' >-> P.map (entry </>))
+                when (isRegularFile status) (yield entry)
 
-        mkPretty :: IO ()
-        mkPretty = mkSomething "-p" prettyPath
+mkTestFile :: MonadIO m => FilePath -> FilePath -> FilePath -> Pipe FilePath TestTree m ()
+mkTestFile d o g = forever mkTestFile'
+    where
+        mkTestFile' = do
+            f <- await
+            let f' = dropExtension f
+            if "E" `isExtensionOf` f'
+                         then
+                             let f'' = dropExtension f'
+                             in yield $ mkTestParseErr   d f o   f''
+                         else if "e" `isExtensionOf` f'
+                            then do
+                                let f'' = dropExtension f'
+                                yield $ mkTestParseOk    d f o g f''
+                                yield $ mkTestResolveErr d f o   f''
+                            else do
+                                yield $ mkTestParseOk    d f o g f'
+                                yield $ mkTestResolveOk  d f o g f'
 
-        -- mkC :: FilePath -> IO ()
-        -- mkC template = mkSomething (format ("-i FAKE_ID -f " % fp) template) (cPath template)
-
-        mkGoldPretty :: TestTree
-        mkGoldPretty = goldenVsFile testPrettyName (encodeString prettyGoldPath) (encodeString prettyPath) mkPretty
-
-        -- mkGoldC :: FilePath -> TestTree
-        -- mkGoldC template = goldenVsFile (testCName template)
-        --                                (encodeString $ cGoldPath template)
-        --                                (encodeString $ cPath template)
-        --                                (mkC template)
-
-        -- mkGoldCs :: [TestTree]
-        -- mkGoldCs = fmap mkGoldC templates
-
-        mkErr :: TestTree
-        mkErr = testCase testErrorName $ do
-            mkPretty
-            b <- testfile errPath
-            unless b $ assertFailure "should fail"
+mkTestsDir :: FilePath -> FilePath -> FilePath -> IO [TestTree]
+mkTestsDir d o g = PS.runSafeT $ P.toListM (treePipe d >-> (P.filter $ isExtensionOf "mlayout") >-> mkTestFile d o g)
 
 main :: IO ()
 main = do
-    putStrLn ""
-    tests    <- (testGroup "Tests"    . concat) <$> fold (ls "test"     >>= makeTestCase "test/out"         "test/gold"        ) list
-    examples <- (testGroup "MLayout"  . concat) <$> fold (ls "mlayout"  >>= makeTestCase "test/out/mlayout" "test/gold/mlayout") list
+    tests    <- testGroup "Tests"   <$> mkTestsDir "test/test" "test/out.test"    "test/gold.test"
+    examples <- testGroup "MLayout" <$> mkTestsDir "mlayout"   "test/out.mlayout" "test/gold.mlayout"
 
     defaultMain $ testGroup "Everyting" [tests, examples]
