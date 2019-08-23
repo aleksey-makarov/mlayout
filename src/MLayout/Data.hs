@@ -104,6 +104,22 @@ instance HFunctor' BitsItem where
     hfmap' f (BitsItemBits x) = BitsItemBits $ f x
     hfmap' _ (BitsItemValue x) = BitsItemValue x
 
+class HTraversable' (h :: (* -> *) -> *) where
+    htraverse' :: (Applicative f) => NatM f a b -> h a -> f (h b)
+
+instance HTraversable' MemoryItem where
+    htraverse' f (MemoryItemMemory x) = MemoryItemMemory <$> f x
+    htraverse' f (MemoryItemWord x) = MemoryItemWord <$> f x
+
+instance HTraversable' WordItem where
+    htraverse' f (WordItemWord x) = WordItemWord <$> f x
+    htraverse' f (WordItemBits x) = WordItemBits <$> f x
+    htraverse' _ (WordItemValue x) = pure $ WordItemValue x
+
+instance HTraversable' BitsItem where
+    htraverse' f (BitsItemBits x) = BitsItemBits <$> f x
+    htraverse' _ (BitsItemValue x) = pure $ BitsItemValue x
+
 data MLayoutF :: * -> (* -> *) -> * -> * where
     MLayoutMemoryF :: Location l MLayoutMemory -> Text -> Text -> [ MemoryItem r ] -> MLayoutF l r MLayoutMemory
     MLayoutWordF ::   Location l MLayoutWord   -> Text -> Text -> [ WordItem r ]   -> MLayoutF l r MLayoutWord
@@ -125,6 +141,14 @@ instance HFunctor (MLayoutF l) where
     hfmap f (MLayoutMemoryF l n d mis) = MLayoutMemoryF l n d $ fmap (hfmap' f) mis
     hfmap f (MLayoutWordF   l n d wis) = MLayoutWordF   l n d $ fmap (hfmap' f) wis
     hfmap f (MLayoutBitsF   l n d bis) = MLayoutBitsF   l n d $ fmap (hfmap' f) bis
+
+instance HFoldable (MLayoutF l) where
+    hfoldMap _ = undefined -- isn't used; we need HFoldable for HTraversable; it can be deduced from HTraversable
+
+instance HTraversable (MLayoutF l) where
+    htraverse f (MLayoutMemoryF l n d mis) = MLayoutMemoryF l n d <$> (sequenceA $ fmap (htraverse' f) mis)
+    htraverse f (MLayoutWordF   l n d wis) = MLayoutWordF   l n d <$> (sequenceA $ fmap (htraverse' f) wis)
+    htraverse f (MLayoutBitsF   l n d bis) = MLayoutBitsF   l n d <$> (sequenceA $ fmap (htraverse' f) bis)
 
 mkM :: Location l MLayoutMemory -> Text -> Text -> [MemoryItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutMemory
 mkM l n d is = HFix (MLayoutMemoryF l n d is)
