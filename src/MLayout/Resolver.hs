@@ -49,14 +49,16 @@ resolveW p@(LocationParsedWord w (Simple at))            = (p, ResolvedWidthStar
 resolveW p@(LocationParsedWord w (Fields positions))     = (p, ResolvedFields (ww w) (resolvePositions positions))
 resolveW p@(LocationParsedWord w (Periodic mAt n mStep)) = (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
 
-resolveAlg :: MLayoutF Parsed (HFix (MLayoutF Resolved)) :~> HFix (MLayoutF Resolved)
-resolveAlg (MLayoutMemoryF l n d mis) = mkM (resolveMB l) n d mis
-resolveAlg (MLayoutWordF   l n d wis) = mkW (resolveW  l) n d wis
-resolveAlg (MLayoutBitsF   l n d bis) = mkB (resolveMB l) n d bis
+newtype R a = R { unR :: HFix (MLayoutF Resolved) a }
+
+resolveAlg :: MLayoutF Parsed R :~> R
+resolveAlg (MLayoutMemoryF l n d mis) = R $ mkM (resolveMB l) n d (fmap (hfmap' unR) mis)
+resolveAlg (MLayoutWordF   l n d wis) = R $ mkW (resolveW  l) n d (fmap (hfmap' unR) wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB (resolveMB l) n d (fmap (hfmap' unR) bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
-resolve1 (MemoryItemMemory m) = Right $ MemoryItemMemory $ hcata resolveAlg m
-resolve1 (MemoryItemWord m)   = Right $ MemoryItemWord   $ hcata resolveAlg m
+resolve1 (MemoryItemMemory m) = Right $ MemoryItemMemory (unR $ hcata resolveAlg m)
+resolve1 (MemoryItemWord m)   = Right $ MemoryItemWord   (unR $ hcata resolveAlg m)
 
 resolve :: [MemoryItemParsed] -> Either ResolverException [MemoryItemResolved]
 resolve layouts = sequence $ fmap resolve1 layouts
