@@ -37,7 +37,7 @@ resolvePositions = fmap f
         f (mAt, name) = (x mAt, name)
 
 resolveMB :: LocationMB -> (LocationMB, LocationResolved)
-resolveMB p@(FromTo mFrom _)                         = (p, ResolvedWidthStart 0 (x mFrom))
+resolveMB p@(FromTo mFrom _)                           = (p, ResolvedWidthStart 0 (x mFrom))
 resolveMB p@(WidthStart mWidth Next)                   = (p, ResolvedWidthStart (x mWidth) 0)
 resolveMB p@(WidthStart mWidth (Simple at))            = (p, ResolvedWidthStart (x mWidth) at)
 resolveMB p@(WidthStart mWidth (Fields positions))     = (p, ResolvedFields (x mWidth) (resolvePositions positions))
