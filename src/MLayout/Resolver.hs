@@ -51,10 +51,13 @@ resolveW p@(LocationParsedWord w (Periodic mAt n mStep)) = (p, ResolvedPeriodic 
 
 newtype R a = R { unR :: HFix (MLayoutF Resolved) a }
 
+unRsubitems :: HFunctor' h => [h R] -> [h (HFix (MLayoutF Resolved))]
+unRsubitems is = fmap (hfmap' unR) is
+
 resolveAlg :: MLayoutF Parsed R :~> R
-resolveAlg (MLayoutMemoryF l n d mis) = R $ mkM (resolveMB l) n d (fmap (hfmap' unR) mis)
-resolveAlg (MLayoutWordF   l n d wis) = R $ mkW (resolveW  l) n d (fmap (hfmap' unR) wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB (resolveMB l) n d (fmap (hfmap' unR) bis)
+resolveAlg (MLayoutMemoryF l n d mis) = R $ mkM (resolveMB l) n d (unRsubitems mis)
+resolveAlg (MLayoutWordF   l n d wis) = R $ mkW (resolveW  l) n d (unRsubitems wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB (resolveMB l) n d (unRsubitems bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
 resolve1 (MemoryItemMemory m) = Right $ MemoryItemMemory (unR $ hcata resolveAlg m)
