@@ -25,6 +25,7 @@ library
                        , parsers >= 0.12.9
                        , prettyprinter
                        , text >= 1.2.3.0
+                       , transformers
                        , trifecta >= 2
                        , unordered-containers
                        , vector

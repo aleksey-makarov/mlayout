@@ -12,9 +12,9 @@ module MLayout.Resolver
     ) where
 
 import           Control.Exception
+import           Control.Monad.Trans.State
 import           Data.List.NonEmpty
 import           Data.Text
-
 
 import           MLayout.Data
 import           MLayout.HFunctor
@@ -36,7 +36,11 @@ resolvePositions = fmap f
     where
         f (mAt, name) = (x mAt, name)
 
-type M = Either ResolverException
+type S = ()
+type M = StateT S (Either ResolverException)
+
+initialState :: S
+initialState = ()
 
 resolveMB :: LocationMB -> M (LocationMB, LocationResolved)
 resolveMB p@(FromTo mFrom _)                           = return (p, ResolvedWidthStart 0 (x mFrom))
@@ -57,13 +61,13 @@ unRsubitems :: HTraversable' h => [h R] -> M [h (HFix (MLayoutF Resolved))]
 unRsubitems is = sequence $ fmap (htraverse' unR) is
 
 resolveAlg :: MLayoutF Parsed R :~> R
-resolveAlg (MLayoutMemoryF l n d mis) = R $ pure mkM <*> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems mis)
-resolveAlg (MLayoutWordF   l n d wis) = R $ pure mkW <*> (resolveW  l) <*> pure n <*> pure d <*> (unRsubitems wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ pure mkB <*> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems bis)
+resolveAlg (MLayoutMemoryF l n d mis) = R $ mkM <$> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems mis)
+resolveAlg (MLayoutWordF   l n d wis) = R $ mkW <$> (resolveW  l) <*> pure n <*> pure d <*> (unRsubitems wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB <$> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
-resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> (unR $ hcata resolveAlg m)
-resolve1 (MemoryItemWord m)   = MemoryItemWord   <$> (unR $ hcata resolveAlg m)
+resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> evalStateT (unR $ hcata resolveAlg m) initialState
+resolve1 (MemoryItemWord m)   = MemoryItemWord   <$> evalStateT (unR $ hcata resolveAlg m) initialState
 
 resolve :: [MemoryItemParsed] -> Either ResolverException [MemoryItemResolved]
 resolve layouts = sequence $ fmap resolve1 layouts
