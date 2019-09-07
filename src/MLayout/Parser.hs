@@ -123,14 +123,14 @@ maybeSubitems :: Prsr [a] -> Prsr [a]
 maybeSubitems subitemParser = braces subitemParser <|> return []
 
 bLayoutP :: Prsr BitsItemParsed
-bLayoutP = (BitsItemBits <$> (mkB <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValue <$> vItemP)
+bLayoutP = (BitsItemBits <$> (mk <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValue <$> vItemP)
 
 bLayoutsP :: Prsr [BitsItemParsed]
 bLayoutsP = some bLayoutP
 
 wLayoutP :: Prsr WordItemParsed
-wLayoutP =  (WordItemWord <$> (mkW <$> wLocationP <*> nameP <*> docP <*> maybeSubitems wLayoutsP))
-        <|> (WordItemBits <$> (mkB <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP))
+wLayoutP =  (WordItemWord <$> (mk <$> wLocationP <*> nameP <*> docP <*> maybeSubitems wLayoutsP))
+        <|> (WordItemBits <$> (mk <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP))
         <|> (WordItemValue <$> vItemP)
 
 wLayoutsP :: Prsr [WordItemParsed]
@@ -139,8 +139,8 @@ wLayoutsP = some wLayoutP
 mLayoutP :: Prsr MemoryItemParsed
 mLayoutP = mwLocationP >>= either mmLayoutP mwLayoutP
     where
-        mmLayoutP l = MemoryItemMemory <$> (mkM l <$> nameP <*> docP <*> maybeSubitems mLayoutsP)
-        mwLayoutP l = MemoryItemWord   <$> (mkW l <$> nameP <*> docP <*> maybeSubitems wLayoutsP)
+        mmLayoutP l = MemoryItemMemory <$> (mk l <$> nameP <*> docP <*> maybeSubitems mLayoutsP)
+        mwLayoutP l = MemoryItemWord   <$> (mk l <$> nameP <*> docP <*> maybeSubitems wLayoutsP)
 
 mLayoutsP :: Prsr [MemoryItemParsed]
 mLayoutsP = some mLayoutP

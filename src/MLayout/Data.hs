@@ -85,6 +85,11 @@ data BitsItem r
     = BitsItemBits (r MLayoutBits)
     | BitsItemValue ValueItem
 
+type family ItemType x where
+    ItemType MLayoutMemory = MemoryItem
+    ItemType MLayoutWord   = WordItem
+    ItemType MLayoutBits   = BitsItem
+
 -- class HFunctor (h :: (* -> *) -> * -> *) where
 --     hfmap :: (f :~> g) -> h f :~> h g
 
@@ -150,14 +155,17 @@ instance HTraversable (MLayoutF l) where
     htraverse f (MLayoutWordF   l n d wis) = MLayoutWordF   l n d <$> (sequenceA $ fmap (htraverse' f) wis)
     htraverse f (MLayoutBitsF   l n d bis) = MLayoutBitsF   l n d <$> (sequenceA $ fmap (htraverse' f) bis)
 
-mkM :: Location l MLayoutMemory -> Text -> Text -> [MemoryItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutMemory
-mkM l n d is = HFix (MLayoutMemoryF l n d is)
+class BuildableLayout x where
+    mk :: Location l x -> Text -> Text -> [(ItemType x) (HFix (MLayoutF l))] -> HFix (MLayoutF l) x
 
-mkW :: Location l MLayoutWord -> Text -> Text -> [WordItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutWord
-mkW l n d is = HFix (MLayoutWordF l n d is)
+instance BuildableLayout MLayoutMemory where
+    mk l n d is = HFix (MLayoutMemoryF l n d is)
 
-mkB :: Location l MLayoutBits -> Text -> Text -> [BitsItem (HFix (MLayoutF l))] -> HFix (MLayoutF l) MLayoutBits
-mkB l n d is = HFix (MLayoutBitsF l n d is)
+instance BuildableLayout MLayoutWord where
+    mk l n d is = HFix (MLayoutWordF l n d is)
+
+instance BuildableLayout MLayoutBits where
+    mk l n d is = HFix (MLayoutBitsF l n d is)
 
 --------------------------------------------------------------------
 

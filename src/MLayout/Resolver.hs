@@ -75,10 +75,10 @@ resolveAlg (MLayoutMemoryF l n d mis) = R $ do
     start' <- get
     when (upperBound r < start') $ error "wrong width" -- FIXME
     put $ upperBound r
-    return $ mkM resolvedLocation n d subitems
+    return $ mk resolvedLocation n d subitems
 
-resolveAlg (MLayoutWordF   l n d wis) = R $ mkW <$> (resolveW  0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB <$> (resolveMB 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
+resolveAlg (MLayoutWordF   l n d wis) = R $ mk <$> (resolveW  0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mk <$> (resolveMB 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
 resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> evalStateT (unR $ hcata resolveAlg m) initialState
