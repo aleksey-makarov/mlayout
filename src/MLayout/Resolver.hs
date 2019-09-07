@@ -49,18 +49,21 @@ upperBound (ResolvedWidthStart w s) = s + w
 upperBound (ResolvedFields w ss) = (P.maximum $ fmap fst ss) + w
 upperBound (ResolvedPeriodic _ s n step) = s + n * step
 
-resolveMB :: Word -> LocationMB -> M (LocationMB, LocationResolved)
-resolveMB _ p@(FromTo mFrom _)                           = return (p, ResolvedWidthStart 0 (x mFrom))
-resolveMB _ p@(WidthStart mWidth Next)                   = return (p, ResolvedWidthStart (x mWidth) 0)
-resolveMB _ p@(WidthStart mWidth (Simple at))            = return (p, ResolvedWidthStart (x mWidth) at)
-resolveMB _ p@(WidthStart mWidth (Fields positions))     = return (p, ResolvedFields (x mWidth) (resolvePositions positions))
-resolveMB _ p@(WidthStart mWidth (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (x mWidth) (x mAt) n (x mStep))
+class ResolvableLocation x where
+    resolveLocation :: Word -> x -> M (x, LocationResolved)
 
-resolveW :: Word -> LocationW -> M (LocationW, LocationResolved)
-resolveW _ p@(LocationParsedWord w Next)                   = return (p, ResolvedWidthStart (ww w) 0)
-resolveW _ p@(LocationParsedWord w (Simple at))            = return (p, ResolvedWidthStart (ww w) at)
-resolveW _ p@(LocationParsedWord w (Fields positions))     = return (p, ResolvedFields (ww w) (resolvePositions positions))
-resolveW _ p@(LocationParsedWord w (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
+instance ResolvableLocation LocationMB where
+    resolveLocation _ p@(FromTo mFrom _)                           = return (p, ResolvedWidthStart 0 (x mFrom))
+    resolveLocation _ p@(WidthStart mWidth Next)                   = return (p, ResolvedWidthStart (x mWidth) 0)
+    resolveLocation _ p@(WidthStart mWidth (Simple at))            = return (p, ResolvedWidthStart (x mWidth) at)
+    resolveLocation _ p@(WidthStart mWidth (Fields positions))     = return (p, ResolvedFields (x mWidth) (resolvePositions positions))
+    resolveLocation _ p@(WidthStart mWidth (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (x mWidth) (x mAt) n (x mStep))
+
+instance ResolvableLocation LocationW where
+    resolveLocation _ p@(LocationParsedWord w Next)                   = return (p, ResolvedWidthStart (ww w) 0)
+    resolveLocation _ p@(LocationParsedWord w (Simple at))            = return (p, ResolvedWidthStart (ww w) at)
+    resolveLocation _ p@(LocationParsedWord w (Fields positions))     = return (p, ResolvedFields (ww w) (resolvePositions positions))
+    resolveLocation _ p@(LocationParsedWord w (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
 
 newtype R a = R { unR :: M (HFix (MLayoutF Resolved) a) }
 
@@ -71,14 +74,14 @@ resolveAlg :: MLayoutF Parsed R :~> R
 resolveAlg (MLayoutMemoryF l n d mis) = R $ do
     start <- get
     subitems <- unRsubitems mis
-    resolvedLocation@(_, r) <- resolveMB start l
+    resolvedLocation@(_, r) <- resolveLocation start l
     start' <- get
     when (upperBound r < start') $ error "wrong width" -- FIXME
     put $ upperBound r
     return $ mk resolvedLocation n d subitems
 
-resolveAlg (MLayoutWordF   l n d wis) = R $ mk <$> (resolveW  0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ mk <$> (resolveMB 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
+resolveAlg (MLayoutWordF   l n d wis) = R $ mk <$> (resolveLocation 0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mk <$> (resolveLocation 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
 resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> evalStateT (unR $ hcata resolveAlg m) initialState
