@@ -12,9 +12,11 @@ module MLayout.Resolver
     ) where
 
 import           Control.Exception
+import           Control.Monad
 import           Control.Monad.Trans.State
 import           Data.List.NonEmpty
 import           Data.Text
+import           Prelude as P
 
 import           MLayout.Data
 import           MLayout.HFunctor
@@ -36,24 +38,29 @@ resolvePositions = fmap f
     where
         f (mAt, name) = (x mAt, name)
 
-type S = ()
+type S = Word
 type M = StateT S (Either ResolverException)
 
 initialState :: S
-initialState = ()
+initialState = 0
 
-resolveMB :: LocationMB -> M (LocationMB, LocationResolved)
-resolveMB p@(FromTo mFrom _)                           = return (p, ResolvedWidthStart 0 (x mFrom))
-resolveMB p@(WidthStart mWidth Next)                   = return (p, ResolvedWidthStart (x mWidth) 0)
-resolveMB p@(WidthStart mWidth (Simple at))            = return (p, ResolvedWidthStart (x mWidth) at)
-resolveMB p@(WidthStart mWidth (Fields positions))     = return (p, ResolvedFields (x mWidth) (resolvePositions positions))
-resolveMB p@(WidthStart mWidth (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (x mWidth) (x mAt) n (x mStep))
+upperBound :: LocationResolved -> Word
+upperBound (ResolvedWidthStart w s) = s + w
+upperBound (ResolvedFields w ss) = (P.maximum $ fmap fst ss) + w
+upperBound (ResolvedPeriodic _ s n step) = s + n * step
 
-resolveW :: LocationW -> M (LocationW, LocationResolved)
-resolveW p@(LocationParsedWord w Next)                   = return (p, ResolvedWidthStart (ww w) 0)
-resolveW p@(LocationParsedWord w (Simple at))            = return (p, ResolvedWidthStart (ww w) at)
-resolveW p@(LocationParsedWord w (Fields positions))     = return (p, ResolvedFields (ww w) (resolvePositions positions))
-resolveW p@(LocationParsedWord w (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
+resolveMB :: Word -> LocationMB -> M (LocationMB, LocationResolved)
+resolveMB _ p@(FromTo mFrom _)                           = return (p, ResolvedWidthStart 0 (x mFrom))
+resolveMB _ p@(WidthStart mWidth Next)                   = return (p, ResolvedWidthStart (x mWidth) 0)
+resolveMB _ p@(WidthStart mWidth (Simple at))            = return (p, ResolvedWidthStart (x mWidth) at)
+resolveMB _ p@(WidthStart mWidth (Fields positions))     = return (p, ResolvedFields (x mWidth) (resolvePositions positions))
+resolveMB _ p@(WidthStart mWidth (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (x mWidth) (x mAt) n (x mStep))
+
+resolveW :: Word -> LocationW -> M (LocationW, LocationResolved)
+resolveW _ p@(LocationParsedWord w Next)                   = return (p, ResolvedWidthStart (ww w) 0)
+resolveW _ p@(LocationParsedWord w (Simple at))            = return (p, ResolvedWidthStart (ww w) at)
+resolveW _ p@(LocationParsedWord w (Fields positions))     = return (p, ResolvedFields (ww w) (resolvePositions positions))
+resolveW _ p@(LocationParsedWord w (Periodic mAt n mStep)) = return (p, ResolvedPeriodic (ww w) (x mAt) n (x mStep))
 
 newtype R a = R { unR :: M (HFix (MLayoutF Resolved) a) }
 
@@ -61,9 +68,17 @@ unRsubitems :: HTraversable' h => [h R] -> M [h (HFix (MLayoutF Resolved))]
 unRsubitems is = sequence $ fmap (htraverse' unR) is
 
 resolveAlg :: MLayoutF Parsed R :~> R
-resolveAlg (MLayoutMemoryF l n d mis) = R $ mkM <$> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems mis)
-resolveAlg (MLayoutWordF   l n d wis) = R $ mkW <$> (resolveW  l) <*> pure n <*> pure d <*> (unRsubitems wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB <$> (resolveMB l) <*> pure n <*> pure d <*> (unRsubitems bis)
+resolveAlg (MLayoutMemoryF l n d mis) = R $ do
+    start <- get
+    subitems <- unRsubitems mis
+    resolvedLocation@(_, r) <- resolveMB start l
+    start' <- get
+    when (upperBound r < start') $ error "wrong width" -- FIXME
+    put $ upperBound r
+    return $ mkM resolvedLocation n d subitems
+
+resolveAlg (MLayoutWordF   l n d wis) = R $ mkW <$> (resolveW  0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
+resolveAlg (MLayoutBitsF   l n d bis) = R $ mkB <$> (resolveMB 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
 resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> evalStateT (unR $ hcata resolveAlg m) initialState
