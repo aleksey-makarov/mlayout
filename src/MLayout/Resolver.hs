@@ -1,10 +1,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+
+{-# OPTIONS_GHC -Wall #-}
 
 module MLayout.Resolver
     ( resolve
@@ -70,18 +73,20 @@ newtype R a = R { unR :: M (HFix (MLayoutF Resolved) a) }
 unRsubitems :: HTraversable' h => [h R] -> M [h (HFix (MLayoutF Resolved))]
 unRsubitems is = sequence $ fmap (htraverse' unR) is
 
-resolveAlg :: MLayoutF Parsed R :~> R
-resolveAlg (MLayoutMemoryF l n d mis) = R $ do
+resolveAlg' :: forall a . (BuildableLayout a, HTraversable' (ItemType a), ResolvableLocation (Location Parsed a)) => Location Parsed a -> Text -> Text -> [ ItemType a R ] -> R a
+resolveAlg' l n d xis = R $ do
     start <- get
-    subitems <- unRsubitems mis
+    subitems <- unRsubitems xis
     resolvedLocation@(_, r) <- resolveLocation start l
     start' <- get
     when (upperBound r < start') $ error "wrong width" -- FIXME
     put $ upperBound r
     return $ mk resolvedLocation n d subitems
 
-resolveAlg (MLayoutWordF   l n d wis) = R $ mk <$> (resolveLocation 0 l) <*> pure n <*> pure d <*> (unRsubitems wis)
-resolveAlg (MLayoutBitsF   l n d bis) = R $ mk <$> (resolveLocation 0 l) <*> pure n <*> pure d <*> (unRsubitems bis)
+resolveAlg :: MLayoutF Parsed R :~> R
+resolveAlg (MLayoutMemoryF l n d mis) = resolveAlg' l n d mis
+resolveAlg (MLayoutWordF   l n d wis) = resolveAlg' l n d wis
+resolveAlg (MLayoutBitsF   l n d bis) = resolveAlg' l n d bis
 
 resolve1 :: MemoryItemParsed -> Either ResolverException MemoryItemResolved
 resolve1 (MemoryItemMemory m) = MemoryItemMemory <$> evalStateT (unR $ hcata resolveAlg m) initialState

@@ -19,6 +19,7 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -65,9 +66,7 @@ type family Location l t = r | r -> l where
     Location Parsed MLayoutMemory = LocationMB
     Location Parsed MLayoutWord   = LocationW
     Location Parsed MLayoutBits   = LocationMB
-    Location Resolved MLayoutMemory = (LocationMB, LocationResolved)
-    Location Resolved MLayoutWord   = (LocationW,  LocationResolved)
-    Location Resolved MLayoutBits   = (LocationMB, LocationResolved)
+    Location Resolved a = (Location Parsed a, LocationResolved)
 
 data ValueItem = ValueItem Integer Text Text -- value, name, doc
 
