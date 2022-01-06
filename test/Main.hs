@@ -49,14 +49,14 @@ mkTestParseOk idir iname odir gdir oname = goldenVsFile (oname ++ " (parse)") g 
         g = gdir </> oname <.> "p" <.> "mlayout"
         mk = callMLayout "-p" i o e
 
-mkTestResolveOk :: FilePath -> FilePath -> FilePath -> FilePath -> FilePath -> TestTree
-mkTestResolveOk idir iname odir gdir oname = goldenVsFile (oname ++ " (resolve)") g o mk
-    where
-        i = idir </> iname
-        o = odir </> oname <.> "r" <.> "mlayout"
-        e = odir </> oname <.> "r" <.> "err"
-        g = gdir </> oname <.> "r" <.> "mlayout"
-        mk = callMLayout "-P" i o e
+-- mkTestResolveOk :: FilePath -> FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+-- mkTestResolveOk idir iname odir gdir oname = goldenVsFile (oname ++ " (resolve)") g o mk
+--     where
+--         i = idir </> iname
+--         o = odir </> oname <.> "r" <.> "mlayout"
+--         e = odir </> oname <.> "r" <.> "err"
+--         g = gdir </> oname <.> "r" <.> "mlayout"
+--         mk = callMLayout "-P" i o e
 
 mkTestParseErr :: FilePath -> FilePath -> FilePath -> FilePath -> TestTree
 mkTestParseErr idir iname odir oname = testCase (oname ++ " (parse err)") $ do
@@ -68,15 +68,15 @@ mkTestParseErr idir iname odir oname = testCase (oname ++ " (parse err)") $ do
         o = odir </> oname <.> "p" <.> "mlayout"
         e = odir </> oname <.> "p" <.> "err"
 
-mkTestResolveErr :: FilePath -> FilePath -> FilePath -> FilePath -> TestTree
-mkTestResolveErr idir iname odir oname = testCase (oname ++ " (resolve err)") $ do
-    callMLayout "-P" i o e
-    b <- fileExist e
-    unless b $ assertFailure "should fail"
-    where
-        i = idir </> iname
-        o = odir </> oname <.> "r" <.> "mlayout"
-        e = odir </> oname <.> "r" <.> "err"
+-- mkTestResolveErr :: FilePath -> FilePath -> FilePath -> FilePath -> TestTree
+-- mkTestResolveErr idir iname odir oname = testCase (oname ++ " (resolve err)") $ do
+--     callMLayout "-P" i o e
+--     b <- fileExist e
+--     unless b $ assertFailure "should fail"
+--     where
+--         i = idir </> iname
+--         o = odir </> oname <.> "r" <.> "mlayout"
+--         e = odir </> oname <.> "r" <.> "err"
 
 lsPipe :: FilePath -> Producer' FilePath (PS.SafeT IO) ()
 lsPipe dirpath =
@@ -110,10 +110,10 @@ mkTestFile d o g = forever mkTestFile'
                             then do
                                 let f'' = dropExtension f'
                                 yield $ mkTestParseOk    d f o g f''
-                                yield $ mkTestResolveErr d f o   f''
+                                -- yield $ mkTestResolveErr d f o   f''
                             else do
                                 yield $ mkTestParseOk    d f o g f'
-                                yield $ mkTestResolveOk  d f o g f'
+                                -- yield $ mkTestResolveOk  d f o g f'
 
 mkTestsDir :: FilePath -> FilePath -> FilePath -> IO [TestTree]
 mkTestsDir d o g = PS.runSafeT $ P.toListM (treePipe d >-> (P.filter $ isExtensionOf "mlayout") >-> mkTestFile d o g)
