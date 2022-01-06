@@ -15,16 +15,21 @@ module MLayout.Resolver
     ) where
 
 import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Trans.State
-import           Data.List.NonEmpty
+-- import           Control.Monad
+-- import           Control.Monad.Trans.State
+-- import           Data.List.NonEmpty
 import           Data.Text
 import           Prelude as P
 
 import           MLayout.Data
-import           MLayout.HFunctor
+-- import           MLayout.HFunctor
 
 data ResolverException = ResolverException Text deriving (Exception, Show, Eq, Ord)
+
+resolve :: [MemoryItemParsed] -> Either ResolverException [MemoryItemResolved]
+resolve _ = Left $ ResolverException "Not implemented"
+
+{-
 
 x :: (Maybe Word) -> Word
 x = maybe 0 id
@@ -95,7 +100,7 @@ resolve1 (MemoryItemWord m)   = MemoryItemWord   <$> evalStateT (unR $ hcata res
 resolve :: [MemoryItemParsed] -> Either ResolverException [MemoryItemResolved]
 resolve layouts = sequence $ fmap resolve1 layouts
 
-{-
+{ -
 -- FIXME: use this for itemToList
 itemToList :: Item b -> [(Word, Word)]
 itemToList (Item w (StartSet1 s) _ _ _) = [(s, s + w)]
