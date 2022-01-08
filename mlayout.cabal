@@ -1,69 +1,89 @@
-name:                mlayout
-version:             0.1.0.0
-synopsis:            Compiler for memory layout descriptions
-description:         Please see README.md
-homepage:            https://gitlab.com/aleksey.makarov/mlayout#readme
-license:             BSD3
-license-file:        LICENSE
-author:              Aleksey Makarov
-maintainer:          aleksey.makarov@gmail.com
-copyright:           2018 Aleksey Makarov
-category:            Development
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+cabal-version: 1.18
 
-library
-    hs-source-dirs:      src
-    build-depends:       base >= 3 && < 5
-    exposed-modules:     MLayout.Parser MLayout.Resolver MLayout.Data
-    other-modules:       MLayout.HFunctor
-    ghc-options:         -Wall
-    build-depends:       base >= 4.9 && < 5
-                       , containers
-                       , formatting >= 6.3.6
-                       , parsers >= 0.12.9
-                       , prettyprinter
-                       , text >= 1.2.3.0
-                       , transformers
-                       , trifecta >= 2
-                       , unordered-containers
-                       , vector
-    default-language:    Haskell2010
+-- This file has been generated from package.yaml by hpack version 0.34.5.
+--
+-- see: https://github.com/sol/hpack
 
-test-suite mlayout-test
-    hs-source-dirs:      test
-    type:                exitcode-stdio-1.0
-    main-is:             Main.hs
-    build-depends:       base >= 4.9 && < 5
-                       , filepath
-                       , pipes
-                       , pipes-safe
-                       , typed-process
-                       , tasty >= 1.1.0.3
-                       , tasty-golden
-                       , tasty-hunit >= 0.10.0.1
-                       , text
-                       , unix
-    ghc-options:         -Wall -threaded
-    default-language:    Haskell2010
-
-executable mlayout
-    hs-source-dirs:      app
-    main-is:             Mlayout.hs
-    build-depends:       base >= 4.9 && < 5
-                       , ansi-wl-pprint
-                       , bytestring
-                       , mlayout
-                       , filepath
-                       , optparse-applicative
-                       , prettyprinter
-                       , text
-                       , trifecta >= 2
-                       , unix
-    ghc-options:         -Wall -threaded
-    default-language:    Haskell2010
+name:           mlayout
+version:        0.0.1
+synopsis:       Compiler for memory layout descriptions
+description:    An executable that parses a DSL and generates code to access structured memory for different languages
+category:       Development
+homepage:       https://github.com/aleksey-makarov/mlayout
+bug-reports:    https://github.com/aleksey-makarov/mlayout/issues
+author:         Aleksey Makarov
+maintainer:     aleksey.makarov@gmail.com
+copyright:      Aleksey Makarov
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+tested-with:
+    GHC == 8.10.7
+extra-doc-files:
+    ChangeLog.md
+    README.md
 
 source-repository head
-    type:                git
-    location:            https://gitlab.com/aleksey.makarov/mlayout
+  type: git
+  location: https://github.com/aleksey-makarov/mlayout
+
+library
+  exposed-modules:
+      MLayout.Parser
+      MLayout.Resolver
+      MLayout.Data
+  other-modules:
+      Paths_mlayout
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-redundant-constraints
+  build-depends:
+      base
+    , formatting
+    , parsers
+    , prettyprinter
+    , text
+    , trifecta
+    , unordered-containers
+  default-language: Haskell2010
+
+executable mlayout
+  main-is: MLayout.hs
+  other-modules:
+      Paths_mlayout
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-redundant-constraints -fno-warn-unused-do-bind -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base
+    , mlayout
+    , optparse-applicative
+    , prettyprinter
+    , prettyprinter-compat-ansi-wl-pprint
+    , text
+    , trifecta
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_mlayout
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-redundant-constraints
+  build-tools:
+      mlayout
+  build-depends:
+      base
+    , filepath
+    , mlayout
+    , pipes
+    , pipes-safe
+    , tasty
+    , tasty-golden
+    , tasty-hunit
+    , text
+    , typed-process
+    , unix
+  default-language: Haskell2010

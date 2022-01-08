@@ -6,8 +6,8 @@
 module Main (main) where
 
 import           Data.Text.IO as DTI
-import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Render.Text
+import           Prettyprinter
+import           Prettyprinter.Render.Text
 import           Options.Applicative
 import           System.Exit
 import           System.IO

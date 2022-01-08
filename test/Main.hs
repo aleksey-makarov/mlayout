@@ -5,9 +5,8 @@
 module Main (main) where
 
 import           Control.Monad
-import           Data.List as L
 import           Pipes as P
-import           Pipes.Prelude as P
+import           Pipes.Prelude as P hiding (elem)
 import           Pipes.Safe as PS
 import           System.Exit
 import           System.FilePath.Posix
@@ -82,7 +81,7 @@ lsPipe :: FilePath -> Producer' FilePath (PS.SafeT IO) ()
 lsPipe dirpath =
     PS.bracket (openDirStream dirpath) closeDirStream (forever . lsPipe')
         >-> P.takeWhile (/= "")
-        >-> P.filter (not . flip L.elem [".", ".."])
+        >-> P.filter (not . flip elem [".", ".."])
     where
         lsPipe' stream = liftIO (readDirStream stream) >>= yield
 

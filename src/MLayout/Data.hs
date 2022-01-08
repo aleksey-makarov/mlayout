@@ -28,7 +28,7 @@ module MLayout.Data where
 -- import Control.Applicative
 import Data.List.NonEmpty
 import Data.Text
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 -- import MLayout.HFunctor
 

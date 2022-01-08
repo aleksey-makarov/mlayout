@@ -1,0 +1,64 @@
+name: mlayout
+version: '0.0.1'
+synopsis: Compiler for memory layout descriptions
+description: An executable that parses a DSL and generates code to access structured memory for different languages
+category: Development
+author: Aleksey Makarov
+maintainer: aleksey.makarov@gmail.com
+copyright: Aleksey Makarov
+license: BSD3
+homepage: https://github.com/aleksey-makarov/mlayout
+dependencies:
+  - base
+tested-with: GHC == 8.10.7
+ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-redundant-constraints
+extra-doc-files:
+    - ChangeLog.md
+    - README.md
+
+github: aleksey-makarov/mlayout
+
+library:
+  source-dirs: src
+  dependencies:
+    - formatting
+    - parsers
+    - prettyprinter
+    - text
+    - trifecta
+    - unordered-containers
+  exposed-modules:
+    - MLayout.Parser
+    - MLayout.Resolver
+    - MLayout.Data
+
+tests:
+  test:
+    main: Main.hs
+    source-dirs: test
+    build-tools:
+      - mlayout:mlayout
+    dependencies:
+      - mlayout
+      - filepath
+      - pipes
+      - pipes-safe
+      - typed-process
+      - tasty
+      - tasty-golden
+      - tasty-hunit
+      - text
+      - unix
+
+executables:
+  mlayout:
+    main: MLayout.hs
+    source-dirs: app
+    ghc-options: -fno-warn-unused-do-bind -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - mlayout
+      - prettyprinter
+      - text
+      - optparse-applicative
+      - prettyprinter-compat-ansi-wl-pprint
+      - trifecta
