@@ -1,8 +1,0 @@
-    let Functor = ./Functor/Type
-
-in    λ(t : Type)
-    → λ(base : Type → Type)
-    → λ(cata : ∀(a : Type) → (base a → a) → t → a)
-    → λ(embed : base t → t)
-    → λ(functor : Functor base)
-    → cata (base t) (functor.map (base t) t embed)

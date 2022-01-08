@@ -1,7 +1,0 @@
-let TreeBase = ../TreeBase/Type
-
-let TreeBase/bifunctor = ../TreeBase/bifunctor
-
-let Mu/Functor = ../Mu/functor
-
-in  Mu/Functor TreeBase TreeBase/bifunctor

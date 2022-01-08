@@ -1,1 +1,0 @@
-{ op = \(a : Text) → \(b : Text) → a ++ b } : ../Semigroup/Type Text

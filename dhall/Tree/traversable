@@ -1,4 +1,0 @@
-let fromTraverse = ../Traversable/fromTraverse
-let Tree = ./Type
-let traverse = ./traverse
-in fromTraverse Tree traverse

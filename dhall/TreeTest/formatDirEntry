@@ -1,5 +1,0 @@
-
-let DirEntry = ./DirEntry
-
-in    λ(info : DirEntry)
-    → merge { aFile = λ(t : Text) → "*${t}*", otherFile = λ(t : Text) → t } info
