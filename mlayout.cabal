@@ -29,9 +29,9 @@ source-repository head
 
 library
   exposed-modules:
+      MLayout.Data
       MLayout.Parser
       MLayout.Resolver
-      MLayout.Data
   other-modules:
       Paths_mlayout
   hs-source-dirs:
@@ -64,26 +64,23 @@ executable mlayout
     , trifecta
   default-language: Haskell2010
 
-test-suite test
+test-suite tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
       Paths_mlayout
   hs-source-dirs:
-      test
+      tests
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-redundant-constraints
-  build-tools:
-      mlayout
   build-depends:
       base
+    , directory
     , filepath
     , mlayout
-    , pipes
-    , pipes-safe
+    , prettyprinter
     , tasty
     , tasty-golden
-    , tasty-hunit
     , text
-    , typed-process
+    , trifecta
     , unix
   default-language: Haskell2010

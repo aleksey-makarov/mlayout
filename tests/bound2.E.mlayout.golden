@@ -1,0 +1,4 @@
+tests/bound2.E.mlayout:2:21: error: should be 0 ..
+    18446744073709551615, expected: hexadecimal digit
+2 | [0x10000000000000000] FAIL "should fail on 64 bit platforms (FIXME: Use Wo>
+  |                     ^                                                      

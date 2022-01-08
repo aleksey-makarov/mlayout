@@ -1,0 +1,3 @@
+tests/bound.E.mlayout:1:2: error: expected: "%", ":", "@", "]", natural
+1 | [-2] N "d" 
+  |  ^         

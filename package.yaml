@@ -28,26 +28,24 @@ library:
     - trifecta
     - unordered-containers
   exposed-modules:
+    - MLayout.Data
     - MLayout.Parser
     - MLayout.Resolver
-    - MLayout.Data
 
+# https://github.com/haskell/cabal/issues/7577
 tests:
-  test:
+  tests:
     main: Main.hs
-    source-dirs: test
-    build-tools:
-      - mlayout:mlayout
+    source-dirs: tests
     dependencies:
       - mlayout
+      - directory
       - filepath
-      - pipes
-      - pipes-safe
-      - typed-process
+      - prettyprinter
       - tasty
       - tasty-golden
-      - tasty-hunit
       - text
+      - trifecta
       - unix
 
 executables:
@@ -57,8 +55,8 @@ executables:
     ghc-options: -fno-warn-unused-do-bind -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - mlayout
-      - prettyprinter
-      - text
       - optparse-applicative
+      - prettyprinter
       - prettyprinter-compat-ansi-wl-pprint
+      - text
       - trifecta
