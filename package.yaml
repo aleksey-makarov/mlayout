@@ -28,9 +28,7 @@ library:
     - trifecta
     - unordered-containers
   exposed-modules:
-    - MLayout.Data
     - MLayout.Parser
-    - MLayout.Resolver
 
 # https://github.com/haskell/cabal/issues/7577
 tests:
