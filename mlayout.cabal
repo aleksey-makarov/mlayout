@@ -30,6 +30,7 @@ source-repository head
 library
   exposed-modules:
       MLayout.Parser
+      MLayout.Data
   other-modules:
       Paths_mlayout
   hs-source-dirs:

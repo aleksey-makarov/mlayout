@@ -35,88 +35,76 @@ import           Text.Parser.Token.Style
 import           Text.Trifecta.Parser
 import           Text.Trifecta.Result
 
+import           MLayout.Data
+
 ------------------------------------------------------------------------
 
-data WordWidth = W8 | W16 | W32 | W64 | W128 deriving Show
-
-instance Pretty WordWidth where
-    pretty W8   = "%8"
-    pretty W16  = "%16"
-    pretty W32  = "%32"
-    pretty W64  = "%64"
-    pretty W128 = "%128"
-
-data StartParsed
-    = Next                                    -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
-    | Simple Word                             -- [@0x11], [7@0x22], [%16@3]
-    | Fields (NonEmpty (Maybe Word, Text))    -- [@{A, B, C}], [%12@{12 A, 34 B}]
-    | Periodic (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional start, mandatory number of items (>= 2), optional step
+data StartP
+    = NextP                                    -- [%32@], [%32], [5@], [5] NB: [2] means [2@], BUT <2> means <@2>
+    | SimpleP Word                             -- [@0x11], [7@0x22], [%16@3]
+    | FieldsP (NonEmpty (Maybe Word, Text))    -- [@{A, B, C}], [%12@{12 A, 34 B}]
+    | PeriodicP (Maybe Word) Word (Maybe Word) -- [1@2[3 +4]] means optional start, mandatory number of items (>= 2), optional step
     deriving Show
 
-instance Pretty StartParsed where
-    pretty  Next = mempty
-    pretty (Simple w) = pretty w
-    pretty (Fields pairs) = PP.braces $ cat $ punctuate ", " $ NEL.toList $ fmap posPretty pairs
+instance Pretty StartP where
+    pretty  NextP = mempty
+    pretty (SimpleP w) = pretty w
+    pretty (FieldsP pairs) = PP.braces $ cat $ punctuate ", " $ NEL.toList $ fmap posPretty pairs
         where
             posPretty (mat, name) = maybe mempty ((<> PP.space) . pretty) mat <> pretty name
-    pretty (Periodic mat n ms) = prettyMaybe mat <> PP.brackets (pretty n <> maybe mempty appendStep ms)
+    pretty (PeriodicP mat n ms) = prettyMaybe mat <> PP.brackets (pretty n <> maybe mempty appendStep ms)
         where
             appendStep w = PP.space <> "+" <> pretty w
 
 data LocationMB
-    = FromTo (Maybe Word) (Maybe Word)        -- [a:b], a is the first, b is the maximum, not upper bound
-    | WidthStart (Maybe Word) StartParsed
+    = FromToP (Maybe Word) (Maybe Word)        -- [a:b], a is the first, b is the maximum, not upper bound
+    | WidthStartP (Maybe Word) StartP
     deriving Show
 
 data LocationW
-    = LocationParsedWord WordWidth StartParsed
+    = LocationWordP WordWidth StartP
     deriving Show
 
-data ValueItem = ValueItem Integer Text Text -- value, name, doc
+data MemoryItemP
+    = MemoryItemMemoryP MLayoutMemoryP
+    | MemoryItemWordP MLayoutWordP
 
-instance Pretty ValueItem where
-    pretty (ValueItem v n d) = "=" <> pretty v <+> pretty n <+> dquotes (pretty d)
+instance Pretty MemoryItemP where
+    pretty (MemoryItemMemoryP i) = pretty i
+    pretty (MemoryItemWordP i)   = pretty i
 
-data MemoryItemParsed
-    = MemoryItemMemory MLayoutMemory
-    | MemoryItemWord MLayoutWord
+data WordItemP
+    = WordItemWordP MLayoutWordP
+    | WordItemBitsP MLayoutBitsP
+    | WordItemValueP ValueItem
 
-instance Pretty MemoryItemParsed where
-    pretty (MemoryItemMemory i) = pretty i
-    pretty (MemoryItemWord i)   = pretty i
+instance Pretty WordItemP where
+    pretty (WordItemWordP i)  = pretty i
+    pretty (WordItemBitsP i)  = pretty i
+    pretty (WordItemValueP i) = pretty i
 
-data WordItemParsed
-    = WordItemWord MLayoutWord
-    | WordItemBits MLayoutBits
-    | WordItemValue ValueItem
+data BitsItemP
+    = BitsItemBitsP MLayoutBitsP
+    | BitsItemValueP ValueItem
 
-instance Pretty WordItemParsed where
-    pretty (WordItemWord i)  = pretty i
-    pretty (WordItemBits i)  = pretty i
-    pretty (WordItemValue i) = pretty i
+instance Pretty BitsItemP where
+    pretty (BitsItemBitsP i)  = pretty i
+    pretty (BitsItemValueP i) = pretty i
 
-data BitsItemParsed
-    = BitsItemBits MLayoutBits
-    | BitsItemValue ValueItem
+data MLayoutMemoryP = MLayoutMemoryP LocationMB Text Text [MemoryItemP]
 
-instance Pretty BitsItemParsed where
-    pretty (BitsItemBits i)  = pretty i
-    pretty (BitsItemValue i) = pretty i
+instance Pretty MLayoutMemoryP where
+    pretty (MLayoutMemoryP l n d mis) = PP.brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
 
-data MLayoutMemory = MLayoutMemory LocationMB Text Text [MemoryItemParsed]
+data MLayoutWordP = MLayoutWordP LocationW Text Text [WordItemP]
 
-instance Pretty MLayoutMemory where
-    pretty (MLayoutMemory l n d mis) = PP.brackets (prettyLocationM l) <+> pretty n <> prettyDoc d <> prettySubitems mis
+instance Pretty MLayoutWordP where
+    pretty (MLayoutWordP l n d wis) = PP.brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
 
-data MLayoutWord = MLayoutWord LocationW Text Text [WordItemParsed]
+data MLayoutBitsP = MLayoutBitsP LocationMB Text Text [BitsItemP]
 
-instance Pretty MLayoutWord where
-    pretty (MLayoutWord l n d wis) = PP.brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
-
-data MLayoutBits = MLayoutBits LocationMB Text Text [BitsItemParsed]
-
-instance Pretty MLayoutBits where
-    pretty (MLayoutBits l n d bis) = PP.angles (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
+instance Pretty MLayoutBitsP where
+    pretty (MLayoutBitsP l n d bis) = PP.angles (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
 
 prettyDoc :: Text -> Doc ann
 prettyDoc t = if Data.Text.null t
@@ -132,19 +120,19 @@ prettySubitems [] = mempty
 prettySubitems is = PP.space <> PP.braces (line <> indent 4 (vsep $ fmap pretty is) <> line)
 
 prettyLocationM :: LocationMB -> Doc ann
-prettyLocationM (FromTo mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
-prettyLocationM (WidthStart Nothing Next) = mempty
-prettyLocationM (WidthStart mw Next) = prettyMaybe mw
-prettyLocationM (WidthStart mw sp) = prettyMaybe mw <> "@" <> pretty sp
+prettyLocationM (FromToP mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
+prettyLocationM (WidthStartP Nothing NextP) = mempty
+prettyLocationM (WidthStartP mw NextP) = prettyMaybe mw
+prettyLocationM (WidthStartP mw sp) = prettyMaybe mw <> "@" <> pretty sp
 
 prettyLocationW :: LocationW -> Doc ann
-prettyLocationW (LocationParsedWord w Next) = pretty w
-prettyLocationW (LocationParsedWord w sp) = pretty w <> "@" <> pretty sp
+prettyLocationW (LocationWordP w NextP) = pretty w
+prettyLocationW (LocationWordP w sp) = pretty w <> "@" <> pretty sp
 
 prettyLocationB :: LocationMB -> Doc ann
-prettyLocationB (WidthStart Nothing Next) = mempty
-prettyLocationB (WidthStart Nothing sp) = pretty sp
-prettyLocationB (WidthStart (Just w) Next) = pretty w <> "@"
+prettyLocationB (WidthStartP Nothing NextP) = mempty
+prettyLocationB (WidthStartP Nothing sp) = pretty sp
+prettyLocationB (WidthStartP (Just w) NextP) = pretty w <> "@"
 prettyLocationB l = prettyLocationM l
 
 ------------------------------------------------------------------------
@@ -160,39 +148,39 @@ wordP = do
         then throw ("should be " % int % " .. " % int) (minBound :: a) (maxBound :: a)
         else return $ fromInteger v
 
-startSimpleP :: Maybe Word -> Prsr StartParsed
-startSimpleP maybeStart = return $ maybe Next Simple maybeStart
+startSimpleP :: Maybe Word -> Prsr StartP
+startSimpleP maybeStart = return $ maybe NextP SimpleP maybeStart
 
-startArrayP :: Maybe Word -> Prsr StartParsed
-startArrayP maybeStart = Tok.brackets (Periodic maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
+startArrayP :: Maybe Word -> Prsr StartP
+startArrayP maybeStart = Tok.brackets (PeriodicP maybeStart <$> wordP <*> optional ((symbolic '+') *> wordP))
 
-startArrayOrSimpleP :: Prsr StartParsed
+startArrayOrSimpleP :: Prsr StartP
 startArrayOrSimpleP = do
     x <- optional wordP
     startArrayP x <|> startSimpleP x
 
-startSetP :: Prsr StartParsed
-startSetP = Fields <$> (Tok.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
+startSetP :: Prsr StartP
+startSetP = FieldsP <$> (Tok.braces $ sepByNonEmpty ((,) <$> optional wordP <*> nameP) (symbolic ','))
 
-atP :: Prsr StartParsed
+atP :: Prsr StartP
 atP = symbolic '@' *> (startSetP <|> startArrayOrSimpleP)
 
 fromToP :: Maybe Word -> Prsr LocationMB
-fromToP maybeFrom = FromTo maybeFrom <$> (symbolic ':' *> optional wordP)
+fromToP maybeFrom = FromToP maybeFrom <$> (symbolic ':' *> optional wordP)
 
 fromToOrAtP :: Maybe Word -> Prsr LocationMB
-fromToOrAtP x = fromToP x <|> (WidthStart x <$> atP)
+fromToOrAtP x = fromToP x <|> (WidthStartP x <$> atP)
 
 justOneWordLocationBits :: Word -> LocationMB
-justOneWordLocationBits w = WidthStart Nothing (Simple w)
+justOneWordLocationBits w = WidthStartP Nothing (SimpleP w)
 
 justOneWordLocationMemory :: Word -> LocationMB
-justOneWordLocationMemory w = WidthStart (Just w) Next
+justOneWordLocationMemory w = WidthStartP (Just w) NextP
 
 locationInternalsP :: (Word -> LocationMB) -> Prsr LocationMB
 locationInternalsP justOneWord = do
     x <- optional wordP
-    fromToOrAtP x <|> (return $ maybe (WidthStart Nothing Next) justOneWord x)
+    fromToOrAtP x <|> (return $ maybe (WidthStartP Nothing NextP) justOneWord x)
 
 wWidthP :: Prsr WordWidth
 wWidthP = token (char '%' *> (  W8   <$ string "8"
@@ -206,7 +194,7 @@ mLocationInternalsP = locationInternalsP justOneWordLocationMemory
 
 -- [%12@..], [%12]
 wLocationInternalsP :: Prsr LocationW
-wLocationInternalsP = LocationParsedWord <$> wWidthP <*> (maybe Next id <$> optional atP)
+wLocationInternalsP = LocationWordP <$> wWidthP <*> (maybe NextP id <$> optional atP)
 
 bLocationInternalsP :: Prsr LocationMB
 bLocationInternalsP = locationInternalsP justOneWordLocationBits
@@ -234,27 +222,27 @@ vItemP = (symbolic '=' *> (ValueItem <$> integer <*> nameP <*> docP)) <?> "value
 maybeSubitems :: Prsr [a] -> Prsr [a]
 maybeSubitems subitemParser = Tok.braces subitemParser <|> return []
 
-bLayoutP :: Prsr BitsItemParsed
-bLayoutP = (BitsItemBits <$> (MLayoutBits <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValue <$> vItemP)
+bLayoutP :: Prsr BitsItemP
+bLayoutP = (BitsItemBitsP <$> (MLayoutBitsP <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP)) <|> (BitsItemValueP <$> vItemP)
 
-bLayoutsP :: Prsr [BitsItemParsed]
+bLayoutsP :: Prsr [BitsItemP]
 bLayoutsP = some bLayoutP
 
-wLayoutP :: Prsr WordItemParsed
-wLayoutP =  (WordItemWord <$> (MLayoutWord <$> wLocationP <*> nameP <*> docP <*> maybeSubitems wLayoutsP))
-        <|> (WordItemBits <$> (MLayoutBits <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP))
-        <|> (WordItemValue <$> vItemP)
+wLayoutP :: Prsr WordItemP
+wLayoutP =  (WordItemWordP <$> (MLayoutWordP <$> wLocationP <*> nameP <*> docP <*> maybeSubitems wLayoutsP))
+        <|> (WordItemBitsP <$> (MLayoutBitsP <$> bLocationP <*> nameP <*> docP <*> maybeSubitems bLayoutsP))
+        <|> (WordItemValueP <$> vItemP)
 
-wLayoutsP :: Prsr [WordItemParsed]
+wLayoutsP :: Prsr [WordItemP]
 wLayoutsP = some wLayoutP
 
-mLayoutP :: Prsr MemoryItemParsed
+mLayoutP :: Prsr MemoryItemP
 mLayoutP = mwLocationP >>= either mmLayoutP mwLayoutP
     where
-        mmLayoutP l = MemoryItemMemory <$> (MLayoutMemory l <$> nameP <*> docP <*> maybeSubitems mLayoutsP)
-        mwLayoutP l = MemoryItemWord   <$> (MLayoutWord   l <$> nameP <*> docP <*> maybeSubitems wLayoutsP)
+        mmLayoutP l = MemoryItemMemoryP <$> (MLayoutMemoryP l <$> nameP <*> docP <*> maybeSubitems mLayoutsP)
+        mwLayoutP l = MemoryItemWordP   <$> (MLayoutWordP   l <$> nameP <*> docP <*> maybeSubitems wLayoutsP)
 
-mLayoutsP :: Prsr [MemoryItemParsed]
+mLayoutsP :: Prsr [MemoryItemP]
 mLayoutsP = some mLayoutP
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
@@ -266,5 +254,5 @@ instance TokenParsing Prsr where
 -- use the default implementation for other methods:
 -- nesting, semi, highlight, token
 
-parser :: Parser [MemoryItemParsed]
+parser :: Parser [MemoryItemP]
 parser = runPrsr $ whiteSpace *> mLayoutsP <* eof

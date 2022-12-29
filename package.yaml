@@ -29,6 +29,7 @@ library:
     - unordered-containers
   exposed-modules:
     - MLayout.Parser
+    - MLayout.Data
 
 # https://github.com/haskell/cabal/issues/7577
 tests:
