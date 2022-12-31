@@ -9,7 +9,7 @@ module MLayout.Data
     ) where
 
 -- import Control.Applicative
-import Data.List.NonEmpty
+import Data.List.NonEmpty as NEL
 import Data.Text
 import Prettyprinter
 
@@ -75,36 +75,25 @@ data MLayoutMemory = MLayoutMemory
     }
 
 instance Pretty MLayoutMemory where
-    pretty MLayoutMemory { .. } = brackets (prettyLocation mStart mWidth) <+> pretty mName <> prettyDoc mDoc <> prettySubitems mItems
-        where
-            prettyLocation (Start start)           width = pretty width <> "@" <> pretty start
-            prettyLocation (Fields nel)            width = undefined
-            prettyLocation (Periodic start n step) width = undefined
+    pretty MLayoutMemory { .. } = brackets (pretty mWidth <> "@" <> prettyStart mStart) <+> pretty mName <> prettyDoc mDoc <> prettySubitems mItems
 
---    pretty (FieldsP pairs) = PP.braces $ cat $ punctuate ", " $ NEL.toList $ fmap posPretty pairs
---        where
---            posPretty (mat, name) = maybe mempty ((<> PP.space) . pretty) mat <> pretty name
---    pretty (PeriodicP mat n ms) = prettyMaybe mat <> PP.brackets (pretty n <> maybe mempty appendStep ms)
---        where
---            appendStep w = PP.space <> "+" <> pretty w
-
-
--- prettyLocationM :: LocationMB -> Doc ann
--- prettyLocationM (FromToP mwFrom mwTo) = prettyMaybe mwFrom <> ":" <> prettyMaybe mwTo
--- prettyLocationM (WidthStartP Nothing NextP) = mempty
--- prettyLocationM (WidthStartP mw NextP) = prettyMaybe mw
--- prettyLocationM (WidthStartP mw sp) = prettyMaybe mw <> "@" <> pretty sp
+prettyStart :: Start -> Doc ann
+prettyStart (Start start) = pretty start
+prettyStart (Fields pairs) = braces $ cat $ punctuate ", " $ NEL.toList $ fmap posPretty pairs
+    where
+            posPretty (at, name) = pretty at <+> pretty name
+prettyStart (Periodic start n step) = pretty start <> brackets (pretty n <+> "+" <> pretty step)
 
 data MLayoutWord = MLayoutWord
     { wStart :: Start
-    , wWidth :: Word
+    , wWidth :: WordWidth
     , wName  :: Text
     , wDoc   :: Text
     , wItems :: [MemoryItem]
     }
 
 instance Pretty MLayoutWord where
-    pretty MLayoutWord { .. } = undefined
+    pretty MLayoutWord { .. } = brackets (pretty wWidth <> "@" <> prettyStart wStart) <+> pretty wName <> prettyDoc wDoc <> prettySubitems wItems
 
 data MLayoutBits = MLayoutBits
     { bStart :: Start
@@ -115,7 +104,10 @@ data MLayoutBits = MLayoutBits
     }
 
 instance Pretty MLayoutBits where
-    pretty MLayoutBits { .. } = undefined
+    pretty MLayoutBits { .. } = angles (prettyLocationB bStart) <+> pretty bName <> prettyDoc bDoc <> prettySubitems bItems
+        where
+            prettyLocationB (Start start) = pretty start <> if bWidth == 1 then mempty else ":" <> pretty (start + bWidth - 1)
+            prettyLocationB _ = pretty bWidth <> "@" <> prettyStart bStart
 
 prettyDoc :: Text -> Doc ann
 prettyDoc t = if Data.Text.null t
@@ -125,14 +117,3 @@ prettyDoc t = if Data.Text.null t
 prettySubitems :: Pretty c => [c] -> Doc ann
 prettySubitems [] = mempty
 prettySubitems is = space <> braces (line <> indent 4 (vsep $ fmap pretty is) <> line)
-
---
--- data MLayoutWord = MLayoutWord LocationW Text Text [WordItemParsed]
---
--- instance Pretty MLayoutWord where
---     pretty (MLayoutWord l n d wis) = PP.brackets (prettyLocationW l) <+> pretty n <> prettyDoc d <> prettySubitems wis
---
--- data MLayoutBits = MLayoutBits LocationMB Text Text [BitsItemParsed]
---
--- instance Pretty MLayoutBits where
---     pretty (MLayoutBits l n d bis) = PP.angles (prettyLocationB l) <+> pretty n <> prettyDoc d <> prettySubitems bis
